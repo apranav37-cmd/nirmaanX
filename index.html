@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<title>NirmaanX</title>
+<style>
+  :root{
+    --navy:#14213d; --navy-2:#1f2f57; --orange:#f77f00; --orange-2:#e07000;
+    --bg:#f3f4f7; --card:#ffffff; --ink:#1b1f2a; --muted:#6b7280; --line:#e5e7eb;
+    --green:#15803d; --green-bg:#dcfce7; --red:#b91c1c; --red-bg:#fee2e2; --amber-bg:#fff4e5;
+    --radius:14px; --shadow:0 1px 3px rgba(20,33,61,.08),0 6px 20px rgba(20,33,61,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{font-size:16px;-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;line-height:1.4;min-height:100dvh;overflow-x:hidden}
+  button,input{font:inherit;color:inherit}
+  input{width:100%;min-height:52px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#fff;outline:none;font-size:16px}
+  input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(247,127,0,.18)}
+  input[type=number]{-moz-appearance:textfield}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  label{display:block;font-size:.85rem;font-weight:600;color:var(--muted);margin:0 0 6px 2px}
+  .field{margin-bottom:14px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;padding:12px 16px;border:none;border-radius:12px;background:var(--orange);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;transition:transform .08s,background .15s}
+  .btn:active{transform:scale(.985)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn.dark{background:var(--navy)}
+  .btn.ghost{background:transparent;color:var(--navy);border:1.5px solid var(--line)}
+  .btn.danger{background:var(--red)}
+  .btn.sm{min-height:40px;padding:8px 14px;font-size:.9rem;width:auto;border-radius:10px}
+  .screen{display:none;min-height:100dvh}
+  .screen.active{display:block}
+  .wrap{max-width:560px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 16px;margin-bottom:14px}
+  .muted{color:var(--muted)}
+  .small{font-size:.85rem}
+  .center{text-align:center}
+  h1,h2,h3{margin:0 0 6px;line-height:1.2}
+  h2{font-size:1.25rem}
+  h3{font-size:1.05rem}
+  .row{display:flex;align-items:center;gap:10px}
+  .row.between{justify-content:space-between}
+  .grow{flex:1;min-width:0}
+  .ellip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Brand header */
+  .hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:calc(28px + env(safe-area-inset-top)) 16px 64px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:rgba(247,127,0,.18)}
+  .hero .inner{max-width:560px;margin:0 auto;position:relative;z-index:1}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:46px;height:46px;border-radius:12px;background:var(--orange);display:grid;place-items:center;font-weight:900;font-size:1.35rem;color:#fff;letter-spacing:-1px}
+  .brand h1{font-size:1.5rem;letter-spacing:.3px;margin:0}
+  .brand h1 span{color:var(--orange)}
+  .brand .tag{font-size:.85rem;opacity:.8;margin:0}
+  .lift{margin-top:-44px;position:relative;z-index:2}
+
+  /* Balance display */
+  .balance{background:linear-gradient(140deg,var(--navy),var(--navy-2));color:#fff;border-radius:var(--radius);padding:20px 18px;margin-bottom:14px;position:relative;overflow:hidden}
+  .balance::after{content:"";position:absolute;right:-30px;bottom:-50px;width:160px;height:160px;border-radius:50%;background:rgba(247,127,0,.22)}
+  .balance .lbl{font-size:.85rem;opacity:.8;text-transform:uppercase;letter-spacing:.6px}
+  .balance .num{font-size:2.6rem;font-weight:800;letter-spacing:-1px;line-height:1.1;margin:4px 0}
+  .balance .num small{font-size:1rem;font-weight:600;letter-spacing:0;opacity:.85;margin-left:4px}
+  .balance .name{font-size:1.05rem;font-weight:600;position:relative;z-index:1}
+
+  .alert{padding:12px 14px;border-radius:12px;font-size:.95rem;margin-bottom:14px}
+  .alert.err{background:var(--red-bg);color:var(--red)}
+  .alert.ok{background:var(--green-bg);color:var(--green)}
+  .alert.info{background:var(--amber-bg);color:#92400e}
+
+  /* Admin shell */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 12px}
+  .topbar .inner{max-width:560px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .topbar .title{font-weight:800;font-size:1.1rem}
+  .topbar .title span{color:var(--orange)}
+  .topbar .sub{font-size:.78rem;opacity:.75}
+  .topbar button{background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:10px;padding:10px 14px;min-height:44px;font-weight:600;cursor:pointer}
+  .admin-content{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .panel{display:none}
+  .panel.active{display:block}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);padding:6px 0 calc(6px + env(safe-area-inset-bottom))}
+  .tabbar .inner{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
+  .tab{background:none;border:none;padding:8px 4px;min-height:58px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-size:.72rem;font-weight:600;cursor:pointer}
+  .tab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .tab.active{color:var(--orange)}
+
+  .search{position:relative}
+  .search input{padding-left:42px}
+  .search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round}
+  .list{list-style:none;margin:0;padding:0}
+  .item{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);min-height:60px;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;cursor:pointer}
+  .item:last-child{border-bottom:none}
+  .avatar{width:42px;height:42px;border-radius:50%;background:var(--amber-bg);color:var(--orange-2);display:grid;place-items:center;font-weight:800;flex-shrink:0}
+  .item .nm{font-weight:600}
+  .item .ph{font-size:.85rem;color:var(--muted)}
+  .pts{font-weight:800;color:var(--navy);white-space:nowrap}
+  .pts small{font-weight:600;color:var(--muted);font-size:.75rem}
+
+  .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .chip{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:12px 6px;min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-weight:700}
+  .chip small{font-weight:600;color:var(--muted);font-size:.75rem}
+  .chip.sel{border-color:var(--orange);background:var(--amber-bg);color:var(--orange-2)}
+  .chip.sel small{color:var(--orange-2)}
+  .chips.invalid .chip{border-color:#fca5a5}
+  .preview{background:var(--bg);border-radius:12px;padding:14px;text-align:center;margin:14px 0}
+  .preview .big{font-size:1.7rem;font-weight:800;color:var(--navy)}
+
+  .tx{padding:12px 0;border-bottom:1px solid var(--line)}
+  .tx:last-child{border-bottom:none}
+  .tx .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .tx .desc{font-weight:600}
+  .tx .meta{font-size:.82rem;color:var(--muted);margin-top:2px}
+  .tx .amt{font-weight:800;white-space:nowrap}
+  .tx .amt.earn{color:var(--green)}
+  .tx .amt.redeem{color:var(--red)}
+  .tx.voided .desc,.tx.voided .amt{text-decoration:line-through;color:var(--muted)}
+  .tx .actions{margin-top:8px;display:flex;justify-content:flex-end}
+  .badge{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.4px;vertical-align:middle}
+  .badge.earn{background:var(--green-bg);color:var(--green)}
+  .badge.redeem{background:var(--red-bg);color:var(--red)}
+  .badge.void{background:#e5e7eb;color:#4b5563}
+  .void-btn{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:8px 12px;min-height:38px;font-size:.82rem;font-weight:600;cursor:pointer}
+
+  /* Dashboard */
+  .kpi{border-radius:var(--radius);padding:16px;background:#fff;box-shadow:var(--shadow)}
+  .kpi .lbl{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .kpi .num{font-size:1.6rem;font-weight:800;color:var(--navy);margin-top:4px;letter-spacing:-.5px}
+  .kpi .num small{font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:0}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  .kpi.hero-kpi{background:linear-gradient(140deg,var(--orange),#ff9a2e);color:#fff;margin-bottom:12px;padding:22px 18px}
+  .kpi.hero-kpi .lbl,.kpi.hero-kpi .num,.kpi.hero-kpi .num small{color:#fff}
+  .kpi.hero-kpi .num{font-size:2.8rem;line-height:1.05}
+  .kpi.hero-kpi .note{font-size:.85rem;opacity:.9;margin-top:6px}
+  .rank{width:28px;height:28px;border-radius:8px;background:var(--bg);display:grid;place-items:center;font-weight:800;font-size:.85rem;color:var(--navy);flex-shrink:0}
+  .rank.gold{background:#fde68a;color:#78350f}.rank.silver{background:#e5e7eb;color:#374151}.rank.bronze{background:#fed7aa;color:#7c2d12}
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--bg);border-radius:12px;padding:4px;gap:4px;margin-bottom:12px}
+  .seg button{border:none;background:transparent;border-radius:9px;padding:10px 6px;min-height:44px;font-weight:700;color:var(--muted);cursor:pointer}
+  .seg button.active{background:#fff;color:var(--navy);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .bar-row{padding:10px 0;border-bottom:1px solid var(--line)}
+  .bar-row:last-child{border-bottom:none}
+  .bar-row .row{margin-bottom:6px}
+  .bar{height:8px;background:var(--bg);border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--orange),#ffb15c);border-radius:6px}
+
+  /* Modal + toast */
+  .overlay{position:fixed;inset:0;background:rgba(20,33,61,.55);z-index:100;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fade .15s}
+  .sheet{background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));animation:up .2s ease-out}
+  @media(min-width:600px){.overlay{align-items:center;padding:20px}.sheet{border-radius:20px}}
+  .sheet h3{font-size:1.15rem;margin-bottom:4px}
+  .sheet .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;font-size:.92rem;opacity:0;pointer-events:none;transition:.25s;z-index:200;max-width:calc(100% - 32px);text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{background:var(--green)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes up{from{transform:translateY(40px)}to{transform:none}}
+  .empty{text-align:center;color:var(--muted);padding:24px 8px}
+  .linkbtn{background:none;border:none;color:var(--orange-2);font-weight:700;padding:8px 4px;min-height:40px;cursor:pointer}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.8rem;font-weight:600;margin:14px 0}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+  .selected-cust{background:var(--amber-bg);border:1.5px solid #fcd9b0;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .footer-note{font-size:.78rem;color:var(--muted);text-align:center;margin-top:8px}
+
+  /* Customer points page — reward reveal */
+  .reward-hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:calc(20px + env(safe-area-inset-top)) 16px 72px;position:relative;overflow:hidden;text-align:center}
+  .reward-hero .inner{max-width:560px;margin:0 auto;position:relative;z-index:2}
+  .reward-hero .back{position:absolute;left:0;top:0;background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:10px;padding:10px 14px;min-height:44px;font-weight:600;cursor:pointer}
+  .reward-hero .hi{font-size:1rem;opacity:.85;margin-top:56px}
+  .reward-hero .who{font-size:1.4rem;font-weight:800;margin:2px 0 18px}
+  .medal{position:relative;width:96px;height:96px;margin:0 auto 14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffd28a,var(--orange) 60%,#c65f00);box-shadow:0 10px 30px rgba(247,127,0,.45),inset 0 -6px 12px rgba(0,0,0,.15);display:grid;place-items:center;font-size:2.4rem;transform:scale(0);animation:pop .7s cubic-bezier(.2,1.4,.4,1) .15s forwards}
+  .medal::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:2px dashed rgba(255,210,138,.5);animation:spin 14s linear infinite}
+  .medal-wrap{position:relative;display:inline-block}
+  .glow{position:absolute;left:50%;top:60px;width:340px;height:340px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(circle,rgba(247,127,0,.35),transparent 65%);pointer-events:none;animation:breathe 3s ease-in-out infinite}
+  .reward-hero .lbl{font-size:.8rem;text-transform:uppercase;letter-spacing:1px;opacity:.8}
+  .reward-hero .bignum{font-size:3.4rem;font-weight:900;letter-spacing:-1.5px;line-height:1.05;margin:4px 0 2px;font-variant-numeric:tabular-nums;opacity:0;animation:rise .6s ease-out .5s forwards}
+  .reward-hero .bignum small{font-size:1.1rem;font-weight:700;letter-spacing:0;opacity:.85;margin-left:6px}
+  .reward-hero .since{font-size:.85rem;opacity:.75;opacity:0;animation:rise .6s ease-out .9s forwards}
+  .confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
+  .confetti i{position:absolute;top:-12px;width:10px;height:14px;border-radius:2px;opacity:0;animation:fall linear forwards}
+  @keyframes pop{to{transform:scale(1)}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes breathe{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.12)}}
+  @keyframes fall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(110vh) rotate(720deg)}}
+  .tier{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);opacity:0;animation:rise .5s ease-out forwards}
+  .tier:last-child{border-bottom:none}
+  .tier .gift{width:54px;height:54px;border-radius:14px;flex-shrink:0;display:grid;place-items:center;font-size:1.6rem;background:linear-gradient(140deg,#fff4e5,#ffe1bd)}
+  .tier.locked .gift{background:var(--bg);filter:grayscale(1);opacity:.7}
+  .tier .t-name{font-weight:800;color:var(--navy)}
+  .tier .t-sub{font-size:.82rem;color:var(--muted);margin-top:2px}
+  .tier .bar{margin-top:8px}
+  .tier .bar i{background:linear-gradient(90deg,var(--navy),var(--navy-2))}
+  .tier.ready .bar i{background:linear-gradient(90deg,var(--orange),#ffb15c)}
+  .tier .btn.sm{min-width:92px}
+  .tier.locked .btn.sm{background:var(--bg);color:var(--muted);border:1.5px solid var(--line);font-size:.78rem;line-height:1.15;padding:6px 10px}
+  .contact-opts{display:grid;gap:12px;margin-top:16px}
+  .contact{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;text-decoration:none;color:#fff;font-weight:700;min-height:64px}
+  .contact.call{background:var(--navy)}
+  .contact.wa{background:#25d366}
+  .contact .ic{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;flex-shrink:0}
+  .contact .ic svg{width:24px;height:24px;fill:#fff}
+  .contact small{display:block;font-weight:500;font-size:.8rem;opacity:.85}
+  .contact:active{transform:scale(.985)}
+  .boot{position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+  .spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--orange);animation:spin .8s linear infinite}
+  @media (prefers-reduced-motion:reduce){.medal,.bignum,.since,.tier{animation:none!important;opacity:1!important;transform:none!important}.confetti{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ===================== SCREEN 1: CUSTOMER LOGIN ===================== -->
+<section id="screen-customer" class="screen active">
+  <div class="hero"><div class="inner">
+    <div class="brand"><div class="logo">NX</div><div><h1>Nirmaan<span>X</span></h1><p class="tag">Rewards for every bag you build with</p></div></div>
+  </div></div>
+  <div class="wrap lift">
+    <div class="card">
+      <h2>Check your points</h2>
+      <p class="muted small" style="margin:0 0 16px">Enter the details registered at the store.</p>
+      <form id="cust-form" novalidate>
+        <div class="field"><label for="c-first">First name</label><input id="c-first" autocomplete="given-name" placeholder="e.g. Ramesh"></div>
+        <div class="field"><label for="c-phone">Phone number</label><input id="c-phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile number"></div>
+        <button class="btn" type="submit">View my points</button>
+      </form>
+    </div>
+    <div id="cust-result"></div>
+    <button class="btn ghost" id="to-admin" type="button">Admin login</button>
+    <p class="footer-note">Points are earned on every cement bag purchased. Ask the store to add your purchase.</p>
+  </div>
+</section>
+
+<!-- ===================== SCREEN 1b: CUSTOMER POINTS & REWARDS ===================== -->
+<section id="screen-points" class="screen">
+  <div class="reward-hero">
+    <div class="confetti" id="confetti"></div>
+    <div class="glow"></div>
+    <div class="inner">
+      <button class="back" id="points-back" type="button">‹ Back</button>
+      <p class="hi">Congratulations</p>
+      <div class="who" id="p-name"></div>
+      <div class="medal-wrap"><div class="medal">🏆</div></div>
+      <div class="lbl">Your points balance</div>
+      <div class="bignum"><span id="p-num">0</span><small>pts</small></div>
+      <div class="since" id="p-since"></div>
+    </div>
+  </div>
+  <div class="wrap lift">
+    <div class="card">
+      <h2>Your rewards</h2>
+      <p class="muted small" style="margin:0 0 6px">Redeem points for gift cards. Tap Redeem and the store will arrange it with you.</p>
+      <div id="tiers"></div>
+    </div>
+    <p class="footer-note">Balance shown as recorded by the store. Redemptions are confirmed by the store team.</p>
+  </div>
+</section>
+
+<!-- ===================== SCREEN 2: ADMIN LOGIN ===================== -->
+<section id="screen-admin-login" class="screen">
+  <div class="hero"><div class="inner">
+    <div class="brand"><div class="logo">NX</div><div><h1>Nirmaan<span>X</span> Admin</h1><p class="tag">Store owner access</p></div></div>
+  </div></div>
+  <div class="wrap lift">
+    <div class="card">
+      <h2>Sign in</h2>
+      <form id="admin-form" novalidate style="margin-top:12px">
+        <div class="field"><label for="a-user">Username</label><input id="a-user" autocomplete="username" autocapitalize="off"></div>
+        <div class="field"><label for="a-pass">Password</label><input id="a-pass" type="password" autocomplete="current-password"></div>
+        <div id="admin-err"></div>
+        <button class="btn dark" type="submit">Sign in</button>
+      </form>
+    </div>
+    <button class="btn ghost" id="back-cust" type="button">Back to customer view</button>
+  </div>
+</section>
+
+<!-- ===================== ADMIN VIEW ===================== -->
+<section id="screen-admin" class="screen">
+  <div class="topbar"><div class="inner">
+    <div><div class="title">Nirmaan<span>X</span> Admin</div><div class="sub" id="admin-sub">Signed in as Pranav</div></div>
+    <button id="logout" type="button">Log out</button>
+  </div></div>
+  <div class="wrap admin-content">
+
+    <!-- 1. Search & Redeem -->
+    <div class="panel active" id="panel-search">
+      <div id="search-list-view">
+        <div class="card">
+          <h2>Search &amp; Redeem</h2>
+          <p class="muted small" style="margin:0 0 12px">Find a customer by name or phone number.</p>
+          <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="s-query" placeholder="Name or phone" autocomplete="off"></div>
+        </div>
+        <div class="card"><ul class="list" id="s-results"></ul></div>
+      </div>
+      <div id="profile-view" style="display:none"></div>
+    </div>
+
+    <!-- 2. Add Points -->
+    <div class="panel" id="panel-add">
+      <div class="card">
+        <h2>Add Points</h2>
+        <p class="muted small" style="margin:0 0 12px">Pick an existing customer or create a new one.</p>
+        <div id="add-cust-block"></div>
+      </div>
+      <div class="card" id="add-points-card">
+        <h3>Purchase details</h3>
+        <div class="field" style="margin-top:12px">
+          <label>Cement category <span style="color:var(--red)">*</span></label>
+          <div class="chips" id="cat-chips"></div>
+          <div id="cat-err" class="small" style="color:var(--red);margin-top:6px;display:none">Please select a cement category.</div>
+        </div>
+        <div class="field"><label for="bags">Number of bags</label><input id="bags" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 20"></div>
+        <div class="preview" id="pts-preview"><div class="muted small">Points to be added</div><div class="big">—</div></div>
+        <button class="btn" id="add-submit" type="button">Add points</button>
+      </div>
+      <div id="add-result"></div>
+    </div>
+
+    <!-- 3. Dashboard -->
+    <div class="panel" id="panel-dash"><div id="dash"></div></div>
+  </div>
+
+  <nav class="tabbar"><div class="inner">
+    <button class="tab active" data-panel="search" type="button"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search &amp; Redeem</button>
+    <button class="tab" data-panel="add" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add Points</button>
+    <button class="tab" data-panel="dash" type="button"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Dashboard</button>
+  </div></nav>
+</section>
+
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+<div id="boot" class="boot"><div class="logo">NX</div><div class="spinner"></div><div class="small muted">Connecting…</div></div>
+
+<script>
+/* =====================================================================
+   FIREBASE CONFIG
+   Paste the web-app config from Firebase console → Project settings →
+   Your apps → SDK setup and configuration → "Config".
+   Leave apiKey empty to run in DEMO mode (in-file data, resets on refresh).
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB4SDNOHK16Ymk9ooWJG7s7DmZVW3ZpFHg",
+  authDomain: "nirmaanx-2c36d.firebaseapp.com",
+  projectId: "nirmaanx-2c36d",
+  storageBucket: "nirmaanx-2c36d.firebasestorage.app",
+  messagingSenderId: "304089894442",
+  appId: "1:304089894442:web:09c115184e44761910bd53",
+  measurementId: "G-RNRFNQGCSN"
+};
+const USE_FIREBASE = !!FIREBASE_CONFIG.apiKey;
+const FIREBASE_SDK_VERSION = '10.14.1';
+/* Admin usernames without "@" are mapped to <username>@this domain for Firebase Auth */
+const ADMIN_EMAIL_DOMAIN = 'nirmaanx.app';
+/* ===================================================================== */
+
+const CATEGORIES = [
+  { id: 'OPC',        label: 'OPC',        pointsPerBag: 100 },
+  { id: 'PPC',        label: 'PPC',        pointsPerBag: 100 },
+  { id: 'Microfiber', label: 'Microfiber', pointsPerBag: 150 },
+];
+const ADMIN_CREDENTIALS = { username: 'Pranav', password: 'Arora@2026' };
+
+/* Customer-facing reward tiers and the store's redemption contacts */
+const REWARD_TIERS = [
+  { points: 25000,  title: '₹250 Amazon gift card'   },
+  { points: 50000,  title: '₹500 Amazon gift card'   },
+  { points: 100000, title: '₹1,000 Amazon gift card' },
+];
+const STORE_CONTACT = { phone: '+918146274743', phoneDisplay: '+91 81462 74743', whatsapp: 'https://wa.link/ise65z' };
+
+/* ---------------------------------------------------------------------
+   IN-FILE DATA (temporary — replaced by Firestore later)
+   --------------------------------------------------------------------- */
+const daysAgo = (d, h = 10) => { const t = new Date(); t.setDate(t.getDate() - d); t.setHours(h, (d * 7) % 60, 0, 0); return t.toISOString(); };
+const ptsFor = (cat, bags) => CATEGORIES.find(c => c.id === cat).pointsPerBag * bags;
+
+let _customers = [
+  { phone: '9876543210', firstName: 'Ramesh', lastName: 'Kumar',  createdAt: daysAgo(400) },
+  { phone: '9812345678', firstName: 'Suresh', lastName: 'Yadav',  createdAt: daysAgo(300) },
+  { phone: '9898989898', firstName: 'Anita',  lastName: 'Sharma', createdAt: daysAgo(210) },
+  { phone: '9123456789', firstName: 'Vikram', lastName: 'Singh',  createdAt: daysAgo(120) },
+  { phone: '9000011111', firstName: 'Mohan',  lastName: 'Lal',    createdAt: daysAgo(60) },
+  { phone: '9555512345', firstName: 'Priya',  lastName: 'Verma',  createdAt: daysAgo(9) },
+];
+
+let _txSeq = 1;
+const seed = (phone, type, category, bags, d, status = 'active', points) => ({
+  id: 'T' + String(_txSeq++).padStart(4, '0'), phone, type,
+  category: type === 'earn' ? category : null,
+  bags: type === 'earn' ? bags : null,
+  points: type === 'earn' ? ptsFor(category, bags) : points,
+  timestamp: daysAgo(d), status,
+});
+let _transactions = [
+  seed('9876543210', 'earn', 'OPC', 100, 395),
+  seed('9876543210', 'earn', 'PPC', 40, 330),
+  seed('9876543210', 'redeem', null, null, 300, 'active', 2000),
+  seed('9876543210', 'earn', 'Microfiber', 30, 200),
+  seed('9876543210', 'earn', 'OPC', 25, 45),
+  seed('9876543210', 'earn', 'PPC', 60, 12),
+  seed('9876543210', 'earn', 'OPC', 20, 2),
+  seed('9812345678', 'earn', 'PPC', 80, 290),
+  seed('9812345678', 'earn', 'OPC', 35, 150),
+  seed('9812345678', 'redeem', null, null, 100, 'active', 5000),
+  seed('9812345678', 'earn', 'Microfiber', 20, 20),
+  seed('9812345678', 'earn', 'PPC', 15, 1),
+  seed('9898989898', 'earn', 'OPC', 100, 205),
+  seed('9898989898', 'earn', 'OPC', 40, 90),
+  seed('9898989898', 'earn', 'PPC', 40, 90, 'voided'),
+  seed('9898989898', 'redeem', null, null, 30, 'active', 4000),
+  seed('9898989898', 'earn', 'Microfiber', 12, 6),
+  seed('9123456789', 'earn', 'PPC', 30, 115),
+  seed('9123456789', 'earn', 'OPC', 30, 70),
+  seed('9123456789', 'redeem', null, null, 40, 'voided', 1500),
+  seed('9123456789', 'earn', 'Microfiber', 10, 3),
+  seed('9000011111', 'earn', 'OPC', 25, 55),
+  seed('9000011111', 'earn', 'PPC', 25, 25),
+  seed('9000011111', 'earn', 'OPC', 10, 0, 'active'),
+  seed('9555512345', 'earn', 'PPC', 12, 8),
+  seed('9555512345', 'earn', 'Microfiber', 8, 1),
+];
+
+/* ---------------------------------------------------------------------
+   DATA STORE — the ONLY place that touches data.
+   Two implementations with the same interface:
+     MemoryStore    — in-file arrays (demo mode)
+     FirestoreStore — Cloud Firestore with real-time listeners
+   `DataStore` points at whichever is active.
+   --------------------------------------------------------------------- */
+const MemoryStore = {
+  watchCustomer() { return () => {}; },
+  async getCustomers() { return _customers.slice(); },
+  async getCustomer(phone) { return _customers.find(c => c.phone === phone) || null; },
+  async findCustomers(q) {
+    q = (q || '').trim().toLowerCase(); if (!q) return [];
+    const digits = q.replace(/\D/g, '');
+    return _customers.filter(c =>
+      (c.firstName + ' ' + c.lastName).toLowerCase().includes(q) ||
+      (digits && c.phone.includes(digits)));
+  },
+  async addCustomer({ firstName, lastName, phone }) {
+    if (_customers.some(c => c.phone === phone)) throw new Error('A customer with this phone number already exists.');
+    const c = { phone, firstName, lastName, createdAt: new Date().toISOString() };
+    _customers.push(c); return c;
+  },
+  async getTransactions(phone) {
+    return _transactions.filter(t => !phone || t.phone === phone)
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  },
+  async addTransaction({ phone, type, category = null, bags = null, points }) {
+    const t = { id: 'T' + String(_txSeq++).padStart(4, '0'), phone, type, category, bags, points,
+      timestamp: new Date().toISOString(), status: 'active' };
+    _transactions.push(t); return t;
+  },
+  async voidTransaction(id) {
+    const t = _transactions.find(t => t.id === id);
+    if (!t) throw new Error('Transaction not found.');
+    if (t.status === 'voided') throw new Error('Already voided.');
+    t.status = 'voided'; return t;
+  },
+};
+
+/* ---------------------------------------------------------------------
+   FIRESTORE STORE
+   Collections:
+     customers/{phone}      firstName, lastName, createdAt (ISO), balance
+     transactions/{autoId}  phone, type, category, bags, points, timestamp (ISO), status
+   The ledger is the source of truth; `balance` is a cached aggregate that is
+   updated in the SAME Firestore transaction as every ledger write, so the
+   customer page can read one document and rules can stay simple.
+   Reads are served from local mirrors kept live by onSnapshot listeners.
+   --------------------------------------------------------------------- */
+const fsMirror = { customers: [], transactions: [], ready: false };
+let fsUnsubs = [];
+const FirestoreStore = {
+  _db() { return firebase.firestore(); },
+  /* Admin-only: mirror both collections in real time */
+  startAdminSync(onChange) {
+    this.stopAdminSync();
+    const db = this._db();
+    fsUnsubs.push(db.collection('customers').onSnapshot(snap => {
+      fsMirror.customers = snap.docs.map(d => ({ phone: d.id, ...d.data() }));
+      onChange();
+    }, showSyncError));
+    fsUnsubs.push(db.collection('transactions').onSnapshot(snap => {
+      fsMirror.transactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      fsMirror.ready = true; onChange();
+    }, showSyncError));
+  },
+  stopAdminSync() { fsUnsubs.forEach(u => u()); fsUnsubs = []; fsMirror.ready = false; $('#sync-banner')?.remove(); },
+  /* Public: live updates for one customer document (customer points page) */
+  watchCustomer(phone, cb) {
+    return this._db().collection('customers').doc(phone).onSnapshot(d => { if (d.exists) cb({ phone: d.id, ...d.data() }); });
+  },
+  async getCustomers() {
+    if (fsMirror.ready) return fsMirror.customers.slice();
+    const snap = await this._db().collection('customers').get();
+    return snap.docs.map(d => ({ phone: d.id, ...d.data() }));
+  },
+  async getCustomer(phone) {
+    const d = await this._db().collection('customers').doc(phone).get();
+    return d.exists ? { phone: d.id, ...d.data() } : null;
+  },
+  async findCustomers(q) {
+    q = (q || '').trim().toLowerCase(); if (!q) return [];
+    const digits = q.replace(/\D/g, '');
+    return (await this.getCustomers()).filter(c =>
+      (c.firstName + ' ' + c.lastName).toLowerCase().includes(q) || (digits && c.phone.includes(digits)));
+  },
+  async addCustomer({ firstName, lastName, phone }) {
+    const ref = this._db().collection('customers').doc(phone);
+    const c = { firstName, lastName, createdAt: new Date().toISOString(), balance: 0 };
+    await this._db().runTransaction(async tx => {
+      if ((await tx.get(ref)).exists) throw new Error('A customer with this phone number already exists.');
+      tx.set(ref, c);
+    });
+    return { phone, ...c };
+  },
+  async getTransactions(phone) {
+    let list;
+    if (fsMirror.ready) list = fsMirror.transactions.filter(t => !phone || t.phone === phone);
+    else {
+      let q = this._db().collection('transactions'); if (phone) q = q.where('phone', '==', phone);
+      list = (await q.get()).docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    return list.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  },
+  async addTransaction({ phone, type, category = null, bags = null, points }) {
+    const db = this._db(), custRef = db.collection('customers').doc(phone), txRef = db.collection('transactions').doc();
+    const t = { phone, type, category, bags, points, timestamp: new Date().toISOString(), status: 'active' };
+    await db.runTransaction(async tx => {
+      const c = await tx.get(custRef); if (!c.exists) throw new Error('Customer not found.');
+      const delta = type === 'earn' ? points : -points;
+      if (type === 'redeem' && (c.data().balance || 0) < points) throw new Error('Insufficient balance.');
+      tx.set(txRef, t);
+      tx.update(custRef, { balance: firebase.firestore.FieldValue.increment(delta) });
+    });
+    return { id: txRef.id, ...t };
+  },
+  async voidTransaction(id) {
+    const db = this._db(), txRef = db.collection('transactions').doc(id);
+    return db.runTransaction(async tx => {
+      const snap = await tx.get(txRef); if (!snap.exists) throw new Error('Transaction not found.');
+      const t = snap.data(); if (t.status === 'voided') throw new Error('Already voided.');
+      const delta = t.type === 'earn' ? -t.points : t.points;   // reverse the original effect
+      tx.update(txRef, { status: 'voided' });
+      tx.update(db.collection('customers').doc(t.phone), { balance: firebase.firestore.FieldValue.increment(delta) });
+      return { id, ...t, status: 'voided' };
+    });
+  },
+};
+
+let DataStore = MemoryStore;
+
+/* Balance: cached aggregate when present (Firestore), else derived from the ledger */
+async function getBalance(phone) {
+  const c = await DataStore.getCustomer(phone);
+  if (c && typeof c.balance === 'number') return c.balance;
+  const tx = await DataStore.getTransactions(phone);
+  return tx.reduce((s, t) => t.status !== 'active' ? s : s + (t.type === 'earn' ? t.points : -t.points), 0);
+}
+
+/* ---------------------------------------------------------------------
+   FIREBASE BOOTSTRAP (loads SDK only when a config is present)
+   --------------------------------------------------------------------- */
+function loadScript(src) { return new Promise((ok, err) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => err(new Error('Failed to load ' + src)); document.head.appendChild(s); }); }
+async function initFirebase() {
+  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
+  await loadScript(base + 'firebase-app-compat.js');
+  await Promise.all([loadScript(base + 'firebase-auth-compat.js'), loadScript(base + 'firebase-firestore-compat.js')]);
+  firebase.initializeApp(FIREBASE_CONFIG);
+  try { await firebase.firestore().enablePersistence({ synchronizeTabs: true }); } catch (e) { /* unsupported browser or multiple tabs — online-only is fine */ }
+  DataStore = FirestoreStore;
+}
+/* A persistent banner (not just a toast) when the live listeners are refused */
+function showSyncError(err) {
+  const uid = firebase.auth().currentUser?.uid || '';
+  let b = $('#sync-banner');
+  if (!b) { b = document.createElement('div'); b.id = 'sync-banner'; b.className = 'alert err'; b.style.cssText = 'margin:0;border-radius:0;position:sticky;top:0;z-index:25'; $('#screen-admin .admin-content').prepend(b); }
+  b.innerHTML = `<strong>Not synced.</strong> ${esc(friendlyError(err))}${uid ? `<br><span class="small">Your UID: <code style="user-select:all;word-break:break-all">${esc(uid)}</code></span>` : ''}`;
+}
+/* Called by the live listeners: re-render whatever the admin is looking at */
+function onLiveDataChanged() {
+  if (!$('#screen-admin').classList.contains('active')) return;
+  const panel = document.querySelector('.panel.active')?.id;
+  if (panel === 'panel-search') currentProfile ? openProfile(currentProfile) : renderSearch();
+  if (panel === 'panel-dash') renderDashboard();
+  if (panel === 'panel-add' && addState.customer) renderAddCustBlock();
+}
+/* Push the demo records into Firestore once (run from the browser console after logging in as admin):  nxSeedDemo() */
+window.nxSeedDemo = async function () {
+  if (!USE_FIREBASE) return console.log('Demo mode already uses this data.');
+  for (const c of _customers) { try { await FirestoreStore.addCustomer(c); } catch (e) { console.log(c.phone, e.message); } }
+  for (const t of _transactions) { if (t.status === 'active') await FirestoreStore.addTransaction(t); }
+  console.log('Seeded', _customers.length, 'customers and', _transactions.filter(t => t.status === 'active').length, 'transactions.');
+};
+
+/* ---------------------------------------------------------------------
+   HELPERS
+   --------------------------------------------------------------------- */
+const $ = s => document.querySelector(s);
+const fmt = n => Number(n).toLocaleString('en-IN');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fullName = c => `${c.firstName} ${c.lastName || ''}`.trim();
+const initials = c => (c.firstName[0] + (c.lastName ? c.lastName[0] : '')).toUpperCase();
+const normPhone = s => (s || '').replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
+const fmtDate = iso => new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const catInfo = id => CATEGORIES.find(c => c.id === id);
+
+/* Translate Firebase error codes into instructions the admin can act on */
+function friendlyError(e) {
+  const code = (e && e.code) || '', msg = (e && e.message) || String(e);
+  if (/permission-denied|insufficient permissions/i.test(code + msg)) return 'Firebase refused the write: this login is not registered as an admin. In Firestore, add a document in the "admins" collection whose ID is this user\'s UID, and make sure the security rules are published.';
+  if (/not-found|does not exist/i.test(code + msg) && /database/i.test(msg)) return 'The Firestore database has not been created yet. In Firebase console go to Build → Firestore Database → Create database.';
+  if (/unavailable|network|offline/i.test(code + msg)) return 'No connection to Firebase right now. The change will be retried when you are back online.';
+  if (/unauthenticated/i.test(code + msg)) return 'You are signed out. Log out and sign in again.';
+  return msg;
+}
+let toastTimer;
+function toast(msg, ok = false) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (ok ? ' ok' : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 2400);
+}
+function openModal(html) {
+  const root = $('#modal-root');
+  root.innerHTML = `<div class="overlay" id="overlay"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  $('#overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
+  document.body.style.overflow = 'hidden';
+}
+function closeModal() { $('#modal-root').innerHTML = ''; document.body.style.overflow = ''; }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  window.scrollTo(0, 0);
+}
+function txHtml(t, withVoid) {
+  const isEarn = t.type === 'earn', voided = t.status === 'voided';
+  const desc = isEarn ? `${esc(t.category)} · ${t.bags} bag${t.bags === 1 ? '' : 's'}` : 'Points redeemed';
+  return `<div class="tx ${voided ? 'voided' : ''}" data-id="${t.id}">
+    <div class="top"><div class="grow">
+      <div class="desc">${desc} <span class="badge ${isEarn ? 'earn' : 'redeem'}">${t.type}</span>${voided ? ' <span class="badge void">Voided</span>' : ''}</div>
+      <div class="meta">${fmtDate(t.timestamp)}</div>
+    </div><div class="amt ${t.type}">${isEarn ? '+' : '−'}${fmt(t.points)} pts</div></div>
+    ${withVoid && !voided ? `<div class="actions"><button class="void-btn" data-void="${t.id}" type="button">Void</button></div>` : ''}
+  </div>`;
+}
+
+/* ---------------------------------------------------------------------
+   SCREEN 1 — CUSTOMER LOGIN
+   --------------------------------------------------------------------- */
+$('#cust-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const first = $('#c-first').value.trim(), phone = normPhone($('#c-phone').value);
+  const out = $('#cust-result');
+  if (!first || !phone) { out.innerHTML = `<div class="alert err">Please enter both your first name and phone number.</div>`; return; }
+  const c = await DataStore.getCustomer(phone);
+  if (!c || c.firstName.toLowerCase() !== first.toLowerCase()) {
+    out.innerHTML = `<div class="alert err"><strong>Customer not found.</strong> Check the first name and phone number, or ask the store to register you.</div>`; return;
+  }
+  out.innerHTML = '';
+  showPointsScreen(c, await getBalance(phone));
+});
+$('#to-admin').addEventListener('click', () => { $('#admin-err').innerHTML = ''; showScreen('screen-admin-login'); });
+$('#back-cust').addEventListener('click', () => showScreen('screen-customer'));
+
+/* ---------------------------------------------------------------------
+   SCREEN 1b — CUSTOMER POINTS & REWARDS (reward reveal)
+   --------------------------------------------------------------------- */
+let countAnim = null;
+function animateCount(el, to, duration = 1500) {
+  cancelAnimationFrame(countAnim);
+  const start = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - start) / duration), eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(Math.round(to * eased));
+    if (p < 1) countAnim = requestAnimationFrame(step);
+  };
+  countAnim = requestAnimationFrame(step);
+}
+function burstConfetti() {
+  const box = $('#confetti'); const colors = ['#f77f00', '#ffd166', '#ffffff', '#ff9a2e', '#06d6a0', '#ef476f'];
+  let html = '';
+  for (let i = 0; i < 46; i++) {
+    const left = Math.random() * 100, delay = Math.random() * 1.2, dur = 2.4 + Math.random() * 1.8, w = 7 + Math.random() * 6;
+    html += `<i style="left:${left}%;width:${w}px;height:${w * 1.4}px;background:${colors[i % colors.length]};animation-duration:${dur}s;animation-delay:${delay}s;border-radius:${i % 3 ? '2px' : '50%'}"></i>`;
+  }
+  box.innerHTML = html;
+  setTimeout(() => { if (box.innerHTML === html) box.innerHTML = ''; }, 5000);
+}
+function showPointsScreen(c, bal) {
+  $('#p-name').textContent = fullName(c);
+  $('#p-since').textContent = `Member since ${new Date(c.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`;
+  $('#p-num').textContent = '0';
+  // Restart CSS animations by re-inserting the hero content
+  const hero = $('#screen-points .reward-hero'); hero.innerHTML = hero.innerHTML;
+  $('#points-back').addEventListener('click', () => { if (pointsUnsub) { pointsUnsub(); pointsUnsub = null; } $('#c-first').value = ''; $('#c-phone').value = ''; showScreen('screen-customer'); });
+  $('#tiers').innerHTML = REWARD_TIERS.map((t, i) => {
+    const ready = bal >= t.points, pct = Math.min(100, Math.round(bal / t.points * 100));
+    return `<div class="tier ${ready ? 'ready' : 'locked'}" style="animation-delay:${.9 + i * .15}s">
+      <div class="gift">🎁</div>
+      <div class="grow"><div class="t-name">${esc(t.title)}</div>
+        <div class="t-sub">${fmt(t.points)} pts${ready ? ' · <strong style="color:var(--green)">Unlocked</strong>' : ` · ${pct}% there`}</div>
+        <div class="bar"><i style="width:${pct}%"></i></div></div>
+      <button class="btn sm" data-redeem="${i}" type="button" ${ready ? '' : 'disabled'}>${ready ? 'Redeem' : `Need ${fmt(t.points - bal)}<br>more pts`}</button>
+    </div>`;
+  }).join('');
+  showScreen('screen-points');
+  burstConfetti();
+  setTimeout(() => animateCount($('#p-num'), bal), 450);
+  // Live balance: if the store adds points while this page is open, update in place
+  if (pointsUnsub) pointsUnsub();
+  pointsUnsub = DataStore.watchCustomer(c.phone, live => {
+    if (typeof live.balance === 'number' && live.balance !== bal && $('#screen-points').classList.contains('active')) showPointsScreen(live, live.balance);
+  });
+}
+let pointsUnsub = null;
+$('#tiers').addEventListener('click', e => {
+  const b = e.target.closest('[data-redeem]'); if (!b || b.disabled) return;
+  const t = REWARD_TIERS[Number(b.dataset.redeem)];
+  openModal(`<h3>Redeem ${esc(t.title)}</h3>
+    <p class="muted small" style="margin:0">Contact the store to claim this reward. ${fmt(t.points)} pts will be deducted once the store confirms.</p>
+    <div class="contact-opts">
+      <a class="contact call" href="tel:${STORE_CONTACT.phone}"><span class="ic"><svg viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1L6.6 10.8z"/></svg></span><span>Call the store<small>${STORE_CONTACT.phoneDisplay}</small></span></a>
+      <a class="contact wa" href="${STORE_CONTACT.whatsapp}" target="_blank" rel="noopener"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .78.8-2.93-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.25-.12-1.46-.72-1.68-.8-.23-.08-.4-.12-.56.12-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06a6.7 6.7 0 0 1-3.35-2.93c-.25-.43.25-.4.72-1.33.08-.17.04-.31-.02-.43l-.76-1.83c-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08c0 1.23.9 2.42 1.02 2.58.12.17 1.76 2.68 4.26 3.76 1.6.69 2.22.75 3.02.63.49-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.23-.17-.48-.29z"/></svg></span><span>WhatsApp the store<small>Opens WhatsApp chat</small></span></a>
+    </div>
+    <button class="btn ghost" id="rd-close" type="button" style="margin-top:12px">Close</button>`);
+  $('#rd-close').addEventListener('click', closeModal);
+});
+
+/* ---------------------------------------------------------------------
+   SCREEN 2 — ADMIN LOGIN
+   --------------------------------------------------------------------- */
+function enterAdmin() {
+  $('#a-user').value = ''; $('#a-pass').value = '';
+  $('#admin-sub').textContent = USE_FIREBASE ? 'Live · synced across devices' : 'Demo mode · data resets on refresh';
+  if (USE_FIREBASE) FirestoreStore.startAdminSync(onLiveDataChanged);
+  showScreen('screen-admin'); switchPanel('search'); renderSearch();
+}
+$('#admin-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const u = $('#a-user').value.trim(), p = $('#a-pass').value, err = $('#admin-err');
+  const btn = e.target.querySelector('button[type=submit]');
+  if (USE_FIREBASE) {
+    // Firebase Auth: username "Pranav" → pranav@nirmaanx.app (create this user in Firebase console → Authentication)
+    const email = u.includes('@') ? u : `${u.toLowerCase()}@${ADMIN_EMAIL_DOMAIN}`;
+    btn.disabled = true; err.innerHTML = '';
+    try { await firebase.auth().signInWithEmailAndPassword(email, p); enterAdmin(); }
+    catch (ex) { err.innerHTML = `<div class="alert err">${/invalid|wrong|not-found|credential/i.test(ex.code) ? 'Incorrect username or password.' : esc(ex.message)}</div>`; }
+    finally { btn.disabled = false; }
+    return;
+  }
+  if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) enterAdmin();
+  else err.innerHTML = `<div class="alert err">Incorrect username or password.</div>`;
+});
+$('#logout').addEventListener('click', async () => {
+  if (USE_FIREBASE) { FirestoreStore.stopAdminSync(); await firebase.auth().signOut(); }
+  currentProfile = null; $('#cust-result').innerHTML = ''; showScreen('screen-customer');
+});
+
+/* ---------------------------------------------------------------------
+   ADMIN SHELL — tabs
+   --------------------------------------------------------------------- */
+function switchPanel(name) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.panel === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  window.scrollTo(0, 0);
+  if (name === 'dash') renderDashboard();
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchPanel(b.dataset.panel)));
+
+/* ---------------------------------------------------------------------
+   1. SEARCH & REDEEM
+   --------------------------------------------------------------------- */
+let currentProfile = null;
+async function customerRows(list, attr) {
+  const rows = await Promise.all(list.map(async c => `<li><button class="item" ${attr}="${c.phone}" type="button">
+    <div class="avatar">${initials(c)}</div>
+    <div class="grow"><div class="nm ellip">${esc(fullName(c))}</div><div class="ph">${c.phone}</div></div>
+    <div class="pts">${fmt(await getBalance(c.phone))} <small>pts</small></div></button></li>`));
+  return rows.join('');
+}
+async function renderSearch() {
+  const q = $('#s-query').value;
+  const list = q.trim() ? await DataStore.findCustomers(q) : await DataStore.getCustomers();
+  const ul = $('#s-results');
+  if (!list.length) { ul.innerHTML = `<li class="empty">No customers match “${esc(q)}”.</li>`; return; }
+  ul.innerHTML = (q.trim() ? '' : `<li class="small muted" style="padding:0 4px 8px">All customers (${list.length})</li>`) + await customerRows(list, 'data-open');
+}
+$('#s-query').addEventListener('input', renderSearch);
+$('#s-results').addEventListener('click', e => { const b = e.target.closest('[data-open]'); if (b) openProfile(b.dataset.open); });
+
+async function openProfile(phone) {
+  const c = await DataStore.getCustomer(phone); if (!c) return;
+  currentProfile = phone;
+  const bal = await getBalance(phone), tx = await DataStore.getTransactions(phone);
+  $('#profile-view').innerHTML = `
+    <button class="linkbtn" id="prof-back" type="button">‹ Back to search</button>
+    <div class="balance"><div class="name">${esc(fullName(c))}</div><div class="small" style="opacity:.8">${c.phone} · Member since ${new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+      <div class="lbl" style="margin-top:12px">Current balance</div><div class="num">${fmt(bal)}<small>pts</small></div></div>
+    <button class="btn" id="redeem-btn" type="button" ${bal <= 0 ? 'disabled' : ''}>Mark Redemption</button>
+    ${bal <= 0 ? '<p class="footer-note">No points available to redeem.</p>' : ''}
+    <div class="card" style="margin-top:14px"><h3>Transaction history</h3><p class="muted small" style="margin:0 0 8px">Most recent first. Voided entries are struck through and excluded from totals.</p>
+      <div id="prof-tx">${tx.length ? tx.map(t => txHtml(t, true)).join('') : '<div class="empty">No transactions yet.</div>'}</div></div>`;
+  $('#search-list-view').style.display = 'none'; $('#profile-view').style.display = 'block'; window.scrollTo(0, 0);
+  $('#prof-back').addEventListener('click', () => { $('#profile-view').style.display = 'none'; $('#search-list-view').style.display = 'block'; currentProfile = null; renderSearch(); });
+  $('#redeem-btn').addEventListener('click', () => openRedeemModal(c, bal));
+  $('#prof-tx').addEventListener('click', e => { const b = e.target.closest('[data-void]'); if (b) openVoidModal(b.dataset.void); });
+}
+
+function openRedeemModal(c, bal) {
+  openModal(`<h3>Mark Redemption</h3><p class="muted small" style="margin:0 0 14px">${esc(fullName(c))} · Available: <strong>${fmt(bal)} pts</strong></p>
+    <div class="field"><label for="r-pts">Points to redeem</label><input id="r-pts" type="number" inputmode="numeric" min="1" max="${bal}" step="1" placeholder="Max ${fmt(bal)}" autofocus></div>
+    <div id="r-err" class="small" style="color:var(--red);min-height:18px"></div>
+    <div class="btns"><button class="btn ghost" id="r-cancel" type="button">Cancel</button><button class="btn" id="r-ok" type="button" disabled>Confirm</button></div>`);
+  const inp = $('#r-pts'), err = $('#r-err'), ok = $('#r-ok');
+  const validate = () => {
+    const v = Number(inp.value); let m = '';
+    if (inp.value === '') m = '';
+    else if (!Number.isInteger(v) || v <= 0) m = 'Enter a whole number greater than 0.';
+    else if (v > bal) m = `Cannot exceed available balance of ${fmt(bal)} pts.`;
+    err.textContent = m; ok.disabled = !(inp.value !== '' && !m); return !m && inp.value !== '';
+  };
+  inp.addEventListener('input', validate); setTimeout(() => inp.focus(), 50);
+  $('#r-cancel').addEventListener('click', closeModal);
+  ok.addEventListener('click', async () => {
+    if (!validate()) return;
+    const pts = Number(inp.value);
+    if (pts > await getBalance(c.phone)) { err.textContent = 'Balance changed — please re-enter.'; return; }
+    ok.disabled = true;
+    try { await DataStore.addTransaction({ phone: c.phone, type: 'redeem', points: pts }); }
+    catch (e) { err.textContent = friendlyError(e); ok.disabled = false; return; }
+    closeModal(); toast(`Redeemed ${fmt(pts)} pts for ${c.firstName}`, true); openProfile(c.phone);
+  });
+}
+
+async function openVoidModal(id) {
+  const t = (await DataStore.getTransactions()).find(t => t.id === id); if (!t) return;
+  const effect = t.type === 'earn' ? `remove ${fmt(t.points)} pts from` : `return ${fmt(t.points)} pts to`;
+  openModal(`<h3>Void this transaction?</h3><p class="muted small" style="margin:0 0 10px">This will ${effect} the customer's balance. The record stays in history marked as voided.</p>
+    <div class="card" style="box-shadow:none;background:var(--bg);padding:4px 12px">${txHtml(t, false)}</div>
+    <div class="btns"><button class="btn ghost" id="v-cancel" type="button">Keep</button><button class="btn danger" id="v-ok" type="button">Void</button></div>`);
+  $('#v-cancel').addEventListener('click', closeModal);
+  $('#v-ok').addEventListener('click', async () => {
+    try { await DataStore.voidTransaction(id); closeModal(); toast('Transaction voided', true); if (currentProfile) openProfile(currentProfile); }
+    catch (e) { toast(friendlyError(e)); }
+  });
+}
+
+/* ---------------------------------------------------------------------
+   2. ADD POINTS
+   --------------------------------------------------------------------- */
+const addState = { mode: 'search', customer: null, category: null };
+
+function renderAddCustBlock() {
+  const b = $('#add-cust-block');
+  if (addState.customer) {
+    const c = addState.customer;
+    b.innerHTML = `<div class="selected-cust"><div class="avatar">${initials(c)}</div><div class="grow"><div style="font-weight:700" class="ellip">${esc(fullName(c))}</div><div class="small muted">${c.phone} · <span id="sel-bal">…</span> pts</div></div><button class="linkbtn" id="sel-change" type="button">Change</button></div>`;
+    getBalance(c.phone).then(v => { const el = $('#sel-bal'); if (el) el.textContent = fmt(v); });
+    $('#sel-change').addEventListener('click', () => { addState.customer = null; renderAddCustBlock(); });
+  } else if (addState.mode === 'new') {
+    b.innerHTML = `<div class="field"><label for="n-first">First name <span style="color:var(--red)">*</span></label><input id="n-first" autocomplete="off"></div>
+      <div class="field"><label for="n-last">Last name</label><input id="n-last" autocomplete="off"></div>
+      <div class="field"><label for="n-phone">Phone number <span style="color:var(--red)">*</span></label><input id="n-phone" type="tel" inputmode="numeric" placeholder="10-digit mobile number" autocomplete="off"></div>
+      <div id="n-err"></div>
+      <div class="alert info small" style="margin-bottom:10px">The customer will be created when you add points below.</div>
+      <button class="linkbtn" id="to-search-mode" type="button">‹ Search existing customer instead</button>`;
+    $('#to-search-mode').addEventListener('click', () => { addState.mode = 'search'; renderAddCustBlock(); });
+  } else {
+    b.innerHTML = `<div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="a-query" placeholder="Search name or phone" autocomplete="off"></div>
+      <ul class="list" id="a-results"></ul>
+      <div class="divider">or</div>
+      <button class="btn ghost" id="to-new-mode" type="button">+ Create new customer</button>`;
+    const doSearch = async () => {
+      const q = $('#a-query').value; const ul = $('#a-results');
+      if (!q.trim()) { ul.innerHTML = ''; return; }
+      const list = await DataStore.findCustomers(q);
+      ul.innerHTML = list.length ? await customerRows(list, 'data-pick') : `<li class="empty small">No match — create a new customer below.</li>`;
+    };
+    $('#a-query').addEventListener('input', doSearch);
+    $('#a-results').addEventListener('click', async e => { const btn = e.target.closest('[data-pick]'); if (!btn) return; addState.customer = await DataStore.getCustomer(btn.dataset.pick); renderAddCustBlock(); });
+    $('#to-new-mode').addEventListener('click', () => { addState.mode = 'new'; renderAddCustBlock(); });
+  }
+}
+
+function renderChips() {
+  $('#cat-chips').innerHTML = CATEGORIES.map(c => `<button class="chip ${addState.category === c.id ? 'sel' : ''}" data-cat="${c.id}" type="button">${c.label}<small>${c.pointsPerBag} pts/bag</small></button>`).join('');
+}
+$('#cat-chips').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat]'); if (!b) return;
+  addState.category = b.dataset.cat; $('#cat-chips').classList.remove('invalid'); $('#cat-err').style.display = 'none';
+  renderChips(); updatePreview();
+});
+function updatePreview() {
+  const bags = Math.floor(Number($('#bags').value)); const cat = catInfo(addState.category);
+  const big = $('#pts-preview .big');
+  if (cat && bags > 0) big.innerHTML = `${fmt(bags * cat.pointsPerBag)} <span class="small muted" style="font-weight:600">pts</span><div class="small muted" style="font-weight:500">${bags} × ${cat.pointsPerBag} (${cat.label})</div>`;
+  else big.textContent = '—';
+}
+$('#bags').addEventListener('input', updatePreview);
+
+$('#add-submit').addEventListener('click', async () => {
+  const bags = Number($('#bags').value); let bad = false;
+  // Category is mandatory
+  if (!addState.category) { $('#cat-chips').classList.add('invalid'); $('#cat-err').style.display = 'block'; bad = true; }
+  if (!Number.isInteger(bags) || bags <= 0) { toast('Enter a valid number of bags (1 or more).'); bad = true; }
+  let customer = addState.customer;
+  if (!customer) {
+    if (addState.mode !== 'new') { toast('Select or create a customer first.'); return; }
+    const first = $('#n-first').value.trim(), last = $('#n-last').value.trim(), phone = normPhone($('#n-phone').value);
+    const err = $('#n-err'); err.innerHTML = '';
+    if (!first) { err.innerHTML = `<div class="alert err">First name is required.</div>`; return; }
+    if (phone.length !== 10) { err.innerHTML = `<div class="alert err">Enter a valid 10-digit phone number.</div>`; return; }
+    if (await DataStore.getCustomer(phone)) { err.innerHTML = `<div class="alert err">A customer with this phone already exists. Search for them instead.</div>`; return; }
+    if (bad) return;
+    try { customer = await DataStore.addCustomer({ firstName: first, lastName: last, phone }); } catch (e) { err.innerHTML = `<div class="alert err">${esc(friendlyError(e))}</div>`; return; }
+  }
+  if (bad) return;
+  const cat = catInfo(addState.category), points = bags * cat.pointsPerBag;
+  const submitBtn = $('#add-submit'); submitBtn.disabled = true; submitBtn.textContent = 'Saving…';
+  try {
+    await DataStore.addTransaction({ phone: customer.phone, type: 'earn', category: cat.id, bags, points });
+  } catch (e) {
+    $('#add-result').innerHTML = `<div class="alert err"><strong>Could not save.</strong> ${esc(friendlyError(e))}</div>`;
+    toast('Could not save points'); $('#add-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
+  } finally { submitBtn.disabled = false; submitBtn.textContent = 'Add points'; }
+  const bal = await getBalance(customer.phone);
+  $('#add-result').innerHTML = `<div class="alert ok"><strong>+${fmt(points)} pts</strong> added to ${esc(fullName(customer))} (${bags} × ${cat.label}). New balance: <strong>${fmt(bal)} pts</strong>.</div>`;
+  toast(`Added ${fmt(points)} pts to ${customer.firstName}`, true);
+  // Reset form for next entry
+  addState.customer = null; addState.mode = 'search'; addState.category = null; $('#bags').value = '';
+  renderAddCustBlock(); renderChips(); updatePreview();
+  $('#add-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+/* ---------------------------------------------------------------------
+   3. DASHBOARD
+   --------------------------------------------------------------------- */
+let dashPeriod = 'weekly';
+function startOfWeek(d) { d = new Date(d); d.setHours(0, 0, 0, 0); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d; }
+function periodBuckets(kind, earns) {
+  const now = new Date(), out = [];
+  if (kind === 'weekly') {
+    for (let i = 0; i < 8; i++) {
+      const s = startOfWeek(now); s.setDate(s.getDate() - 7 * i); const e = new Date(s); e.setDate(e.getDate() + 7);
+      const lbl = i === 0 ? 'This week' : i === 1 ? 'Last week' : `${s.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} – ${new Date(e - 1).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+      out.push({ lbl, s, e });
+    }
+  } else if (kind === 'monthly') {
+    for (let i = 0; i < 6; i++) {
+      const s = new Date(now.getFullYear(), now.getMonth() - i, 1), e = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      out.push({ lbl: (i === 0 ? 'This month · ' : '') + s.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }), s, e });
+    }
+  } else {
+    const years = new Set(earns.map(t => new Date(t.timestamp).getFullYear())); years.add(now.getFullYear());
+    [...years].sort((a, b) => b - a).forEach(y => out.push({ lbl: (y === now.getFullYear() ? 'This year · ' : '') + y, s: new Date(y, 0, 1), e: new Date(y + 1, 0, 1) }));
+  }
+  return out.map(b => ({ ...b, pts: earns.filter(t => { const d = new Date(t.timestamp); return d >= b.s && d < b.e; }).reduce((s, t) => s + t.points, 0) }));
+}
+
+async function renderDashboard() {
+  const tx = (await DataStore.getTransactions()).filter(t => t.status === 'active');
+  const earns = tx.filter(t => t.type === 'earn'), redeems = tx.filter(t => t.type === 'redeem');
+  const disbursed = earns.reduce((s, t) => s + t.points, 0), redeemed = redeems.reduce((s, t) => s + t.points, 0);
+  const outstanding = disbursed - redeemed;
+  const customers = await DataStore.getCustomers();
+  const byCust = {}; earns.forEach(t => byCust[t.phone] = (byCust[t.phone] || 0) + t.points);
+  const top = Object.entries(byCust).sort((a, b) => b[1] - a[1]).slice(0, 10)
+    .map(([phone, pts]) => ({ c: customers.find(c => c.phone === phone), pts })).filter(x => x.c);
+  const buckets = periodBuckets(dashPeriod, earns), max = Math.max(1, ...buckets.map(b => b.pts));
+
+  $('#dash').innerHTML = `
+    <h2 style="margin-bottom:12px">Dashboard</h2>
+    <div class="kpi hero-kpi"><div class="lbl">Points outstanding</div><div class="num">${fmt(outstanding)} <small>pts</small></div><div class="note">Live liability · disbursed minus redeemed</div></div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="lbl">Disbursed</div><div class="num">${fmt(disbursed)} <small>pts</small></div><div class="small muted">${earns.length} earn entries</div></div>
+      <div class="kpi"><div class="lbl">Redeemed</div><div class="num">${fmt(redeemed)} <small>pts</small></div><div class="small muted">${redeems.length} redemptions</div></div>
+    </div>
+    <div class="card"><h3>Disbursement summary</h3>
+      <div class="seg" style="margin-top:10px">${['weekly', 'monthly', 'yearly'].map(k => `<button class="${dashPeriod === k ? 'active' : ''}" data-period="${k}" type="button">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      ${buckets.map(b => `<div class="bar-row"><div class="row between"><span class="small ellip" style="font-weight:600">${b.lbl}</span><span class="pts">${fmt(b.pts)} <small>pts</small></span></div><div class="bar"><i style="width:${Math.round(b.pts / max * 100)}%"></i></div></div>`).join('')}
+    </div>
+    <div class="card"><h3>Top 10 point earners</h3><p class="muted small" style="margin:0 0 6px">By active points earned (voided entries excluded).</p>
+      <ul class="list">${top.length ? top.map((x, i) => `<li><button class="item" data-open-dash="${x.c.phone}" type="button"><div class="rank ${['gold', 'silver', 'bronze'][i] || ''}">${i + 1}</div><div class="grow"><div class="nm ellip">${esc(fullName(x.c))}</div><div class="ph">${x.c.phone}</div></div><div class="pts">${fmt(x.pts)} <small>pts</small></div></button></li>`).join('') : '<li class="empty">No points disbursed yet.</li>'}</ul>
+    </div>
+    <div class="card"><h3>Backup</h3><p class="muted small" style="margin:0 0 10px">Download a copy of all customers and the full transaction ledger (including voided entries).</p>
+      <div class="row"><button class="btn ghost" id="bk-json" type="button">Download JSON</button><button class="btn ghost" id="bk-csv" type="button">Download CSV</button></div></div>
+    <p class="footer-note">${customers.length} customers · ${tx.length} active transactions</p>`;
+  $('#dash').querySelectorAll('[data-period]').forEach(b => b.addEventListener('click', () => { dashPeriod = b.dataset.period; renderDashboard(); }));
+  $('#bk-json').addEventListener('click', () => downloadBackup('json'));
+  $('#bk-csv').addEventListener('click', () => downloadBackup('csv'));
+}
+
+/* Manual backup — complements the scheduled Firestore export */
+async function downloadBackup(kind) {
+  const customers = await DataStore.getCustomers(), transactions = await DataStore.getTransactions();
+  const stamp = new Date().toISOString().slice(0, 10); let blob, name;
+  if (kind === 'json') {
+    blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), customers, transactions }, null, 2)], { type: 'application/json' });
+    name = `nirmaanx-backup-${stamp}.json`;
+  } else {
+    const csv = r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',');
+    const byPhone = Object.fromEntries(customers.map(c => [c.phone, c]));
+    const rows = [csv(['id', 'timestamp', 'phone', 'customer', 'type', 'category', 'bags', 'points', 'status'])]
+      .concat(transactions.map(t => csv([t.id, t.timestamp, t.phone, byPhone[t.phone] ? fullName(byPhone[t.phone]) : '', t.type, t.category, t.bags, t.points, t.status])));
+    blob = new Blob(['﻿' + rows.join('\n')], { type: 'text/csv' }); name = `nirmaanx-ledger-${stamp}.csv`;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Backup downloaded', true);
+}
+$('#dash').addEventListener('click', e => { const b = e.target.closest('[data-open-dash]'); if (b) { switchPanel('search'); openProfile(b.dataset.openDash); } });
+
+/* ---------------------------------------------------------------------
+   BOOT
+   --------------------------------------------------------------------- */
+renderChips(); updatePreview(); renderAddCustBlock();
+(async () => {
+  if (!USE_FIREBASE) { $('#boot').remove(); return; }
+  try {
+    await initFirebase();
+    // Keep the admin signed in across reloads on the same device
+    firebase.auth().onAuthStateChanged(user => {
+      if (user && !$('#screen-admin').classList.contains('active')) enterAdmin();
+      $('#boot')?.remove();
+    });
+  } catch (e) {
+    $('#boot').innerHTML = `<div class="alert err" style="max-width:360px">Could not connect to Firebase: ${esc(e.message)}<br><small>Check your internet connection and the FIREBASE_CONFIG block.</small></div>`;
+  }
+})();
+</script>
+</body>
+</html>
