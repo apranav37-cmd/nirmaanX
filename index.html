@@ -200,6 +200,13 @@
   .contact .ic svg{width:24px;height:24px;fill:#fff}
   .contact small{display:block;font-weight:500;font-size:.8rem;opacity:.85}
   .contact:active{transform:scale(.985)}
+  /* Busy state: any button doing a write shows a spinner and ignores further taps */
+  .loading{position:relative;color:transparent!important;pointer-events:none}
+  .loading::after{content:"";position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .7s linear infinite}
+  .ghost.loading::after,.void-btn.loading::after,.tier .btn.sm.loading::after{border-color:rgba(20,33,61,.18);border-top-color:var(--navy)}
+  .confirm-box{background:var(--bg);border-radius:12px;padding:16px;text-align:center;margin-top:8px}
+  .confirm-box .big{font-size:2rem;font-weight:800;color:var(--red);letter-spacing:-.5px}
+  .confirm-box .after{font-size:.9rem;color:var(--muted);margin-top:4px}
   .boot{position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
   .spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--orange);animation:spin .8s linear infinite}
   @media (prefers-reduced-motion:reduce){.medal,.bignum,.since,.tier{animation:none!important;opacity:1!important;transform:none!important}.confetti{display:none}}
@@ -496,8 +503,19 @@ const FirestoreStore = {
     return snap.docs.map(d => ({ phone: d.id, ...d.data() }));
   },
   async getCustomer(phone) {
+    // Admin: answer from the live mirror (no network round-trip per row)
+    if (fsMirror.ready) return fsMirror.customers.find(c => c.phone === phone) || null;
     const d = await this._db().collection('customers').doc(phone).get();
     return d.exists ? { phone: d.id, ...d.data() } : null;
+  },
+  /* Apply a committed write to the mirror immediately so the UI is consistent
+     before the server snapshot arrives (which then confirms the same state). */
+  _patchMirror(tx, newBalance) {
+    if (!fsMirror.ready) return;
+    // Absolute values, so applying this before OR after the server snapshot gives the same result
+    const c = fsMirror.customers.find(c => c.phone === tx.phone); if (c) c.balance = newBalance;
+    const i = fsMirror.transactions.findIndex(t => t.id === tx.id);
+    if (i >= 0) fsMirror.transactions[i] = tx; else fsMirror.transactions.push(tx);
   },
   async findCustomers(q) {
     q = (q || '').trim().toLowerCase(); if (!q) return [];
@@ -512,6 +530,7 @@ const FirestoreStore = {
       if ((await tx.get(ref)).exists) throw new Error('A customer with this phone number already exists.');
       tx.set(ref, c);
     });
+    if (fsMirror.ready && !fsMirror.customers.some(x => x.phone === phone)) fsMirror.customers.push({ phone, ...c });
     return { phone, ...c };
   },
   async getTransactions(phone) {
@@ -526,25 +545,32 @@ const FirestoreStore = {
   async addTransaction({ phone, type, category = null, bags = null, points }) {
     const db = this._db(), custRef = db.collection('customers').doc(phone), txRef = db.collection('transactions').doc();
     const t = { phone, type, category, bags, points, timestamp: new Date().toISOString(), status: 'active' };
-    await db.runTransaction(async tx => {
+    const newBalance = await db.runTransaction(async tx => {
       const c = await tx.get(custRef); if (!c.exists) throw new Error('Customer not found.');
-      const delta = type === 'earn' ? points : -points;
-      if (type === 'redeem' && (c.data().balance || 0) < points) throw new Error('Insufficient balance.');
+      const delta = type === 'earn' ? points : -points, current = c.data().balance || 0;
+      if (type === 'redeem' && current < points) throw new Error('Insufficient balance.');
       tx.set(txRef, t);
       tx.update(custRef, { balance: firebase.firestore.FieldValue.increment(delta) });
+      return current + delta;
     });
-    return { id: txRef.id, ...t };
+    const saved = { id: txRef.id, ...t };
+    this._patchMirror(saved, newBalance);
+    return saved;
   },
   async voidTransaction(id) {
     const db = this._db(), txRef = db.collection('transactions').doc(id);
-    return db.runTransaction(async tx => {
+    const result = await db.runTransaction(async tx => {
       const snap = await tx.get(txRef); if (!snap.exists) throw new Error('Transaction not found.');
       const t = snap.data(); if (t.status === 'voided') throw new Error('Already voided.');
+      const custRef = db.collection('customers').doc(t.phone), c = await tx.get(custRef);
       const delta = t.type === 'earn' ? -t.points : t.points;   // reverse the original effect
+      const current = c.exists ? (c.data().balance || 0) : 0;
       tx.update(txRef, { status: 'voided' });
-      tx.update(db.collection('customers').doc(t.phone), { balance: firebase.firestore.FieldValue.increment(delta) });
-      return { id, ...t, status: 'voided' };
+      tx.update(custRef, { balance: firebase.firestore.FieldValue.increment(delta) });
+      return { tx: { id, ...t, status: 'voided' }, newBalance: current + delta };
     });
+    this._patchMirror(result.tx, result.newBalance);
+    return result.tx;
   },
 };
 
@@ -614,6 +640,16 @@ function friendlyError(e) {
   if (/unauthenticated/i.test(code + msg)) return 'You are signed out. Log out and sign in again.';
   return msg;
 }
+/* One write at a time: locks the tapped button (spinner) and ignores other
+   action taps until the awaited work has finished — success or failure. */
+let actionInFlight = false;
+async function withBusy(btn, fn) {
+  if (actionInFlight) return;
+  actionInFlight = true;
+  if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+  try { return await fn(); }
+  finally { actionInFlight = false; if (btn) { btn.classList.remove('loading'); btn.disabled = false; } }
+}
 let toastTimer;
 function toast(msg, ok = false) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (ok ? ' ok' : '');
@@ -645,17 +681,21 @@ function txHtml(t, withVoid) {
 /* ---------------------------------------------------------------------
    SCREEN 1 — CUSTOMER LOGIN
    --------------------------------------------------------------------- */
-$('#cust-form').addEventListener('submit', async e => {
+$('#cust-form').addEventListener('submit', e => {
   e.preventDefault();
-  const first = $('#c-first').value.trim(), phone = normPhone($('#c-phone').value);
-  const out = $('#cust-result');
-  if (!first || !phone) { out.innerHTML = `<div class="alert err">Please enter both your first name and phone number.</div>`; return; }
-  const c = await DataStore.getCustomer(phone);
-  if (!c || c.firstName.toLowerCase() !== first.toLowerCase()) {
-    out.innerHTML = `<div class="alert err"><strong>Customer not found.</strong> Check the first name and phone number, or ask the store to register you.</div>`; return;
-  }
-  out.innerHTML = '';
-  showPointsScreen(c, await getBalance(phone));
+  withBusy(e.target.querySelector('button[type=submit]'), async () => {
+    const first = $('#c-first').value.trim(), phone = normPhone($('#c-phone').value);
+    const out = $('#cust-result');
+    if (!first || !phone) { out.innerHTML = `<div class="alert err">Please enter both your first name and phone number.</div>`; return; }
+    let c;
+    try { c = await DataStore.getCustomer(phone); }
+    catch (ex) { out.innerHTML = `<div class="alert err">${esc(friendlyError(ex))}</div>`; return; }
+    if (!c || c.firstName.toLowerCase() !== first.toLowerCase()) {
+      out.innerHTML = `<div class="alert err"><strong>Customer not found.</strong> Check the first name and phone number, or ask the store to register you.</div>`; return;
+    }
+    out.innerHTML = '';
+    showPointsScreen(c, await getBalance(phone));
+  });
 });
 $('#to-admin').addEventListener('click', () => { $('#admin-err').innerHTML = ''; showScreen('screen-admin-login'); });
 $('#back-cust').addEventListener('click', () => showScreen('screen-customer'));
@@ -733,21 +773,21 @@ function enterAdmin() {
   if (USE_FIREBASE) FirestoreStore.startAdminSync(onLiveDataChanged);
   showScreen('screen-admin'); switchPanel('search'); renderSearch();
 }
-$('#admin-form').addEventListener('submit', async e => {
+$('#admin-form').addEventListener('submit', e => {
   e.preventDefault();
-  const u = $('#a-user').value.trim(), p = $('#a-pass').value, err = $('#admin-err');
-  const btn = e.target.querySelector('button[type=submit]');
-  if (USE_FIREBASE) {
-    // Firebase Auth: username "Pranav" → pranav@nirmaanx.app (create this user in Firebase console → Authentication)
-    const email = u.includes('@') ? u : `${u.toLowerCase()}@${ADMIN_EMAIL_DOMAIN}`;
-    btn.disabled = true; err.innerHTML = '';
-    try { await firebase.auth().signInWithEmailAndPassword(email, p); enterAdmin(); }
-    catch (ex) { err.innerHTML = `<div class="alert err">${/invalid|wrong|not-found|credential/i.test(ex.code) ? 'Incorrect username or password.' : esc(ex.message)}</div>`; }
-    finally { btn.disabled = false; }
-    return;
-  }
-  if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) enterAdmin();
-  else err.innerHTML = `<div class="alert err">Incorrect username or password.</div>`;
+  withBusy(e.target.querySelector('button[type=submit]'), async () => {
+    const u = $('#a-user').value.trim(), p = $('#a-pass').value, err = $('#admin-err');
+    err.innerHTML = '';
+    if (USE_FIREBASE) {
+      // Firebase Auth: username "Pranav" → pranav@nirmaanx.app (create this user in Firebase console → Authentication)
+      const email = u.includes('@') ? u : `${u.toLowerCase()}@${ADMIN_EMAIL_DOMAIN}`;
+      try { await firebase.auth().signInWithEmailAndPassword(email, p); enterAdmin(); }
+      catch (ex) { err.innerHTML = `<div class="alert err">${/invalid|wrong|not-found|credential/i.test(ex.code) ? 'Incorrect username or password.' : esc(ex.message)}</div>`; }
+      return;
+    }
+    if (u === ADMIN_CREDENTIALS.username && p === ADMIN_CREDENTIALS.password) enterAdmin();
+    else err.innerHTML = `<div class="alert err">Incorrect username or password.</div>`;
+  });
 });
 $('#logout').addEventListener('click', async () => {
   if (USE_FIREBASE) { FirestoreStore.stopAdminSync(); await firebase.auth().signOut(); }
@@ -805,29 +845,39 @@ async function openProfile(phone) {
 }
 
 function openRedeemModal(c, bal) {
+  // Step 1 — amount
   openModal(`<h3>Mark Redemption</h3><p class="muted small" style="margin:0 0 14px">${esc(fullName(c))} · Available: <strong>${fmt(bal)} pts</strong></p>
     <div class="field"><label for="r-pts">Points to redeem</label><input id="r-pts" type="number" inputmode="numeric" min="1" max="${bal}" step="1" placeholder="Max ${fmt(bal)}" autofocus></div>
     <div id="r-err" class="small" style="color:var(--red);min-height:18px"></div>
-    <div class="btns"><button class="btn ghost" id="r-cancel" type="button">Cancel</button><button class="btn" id="r-ok" type="button" disabled>Confirm</button></div>`);
-  const inp = $('#r-pts'), err = $('#r-err'), ok = $('#r-ok');
+    <div class="btns"><button class="btn ghost" id="r-cancel" type="button">Cancel</button><button class="btn" id="r-next" type="button" disabled>Continue</button></div>`);
+  const inp = $('#r-pts'), err = $('#r-err'), next = $('#r-next');
   const validate = () => {
     const v = Number(inp.value); let m = '';
     if (inp.value === '') m = '';
     else if (!Number.isInteger(v) || v <= 0) m = 'Enter a whole number greater than 0.';
     else if (v > bal) m = `Cannot exceed available balance of ${fmt(bal)} pts.`;
-    err.textContent = m; ok.disabled = !(inp.value !== '' && !m); return !m && inp.value !== '';
+    err.textContent = m; next.disabled = !(inp.value !== '' && !m); return !m && inp.value !== '';
   };
   inp.addEventListener('input', validate); setTimeout(() => inp.focus(), 50);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && validate()) next.click(); });
   $('#r-cancel').addEventListener('click', closeModal);
-  ok.addEventListener('click', async () => {
-    if (!validate()) return;
-    const pts = Number(inp.value);
-    if (pts > await getBalance(c.phone)) { err.textContent = 'Balance changed — please re-enter.'; return; }
-    ok.disabled = true;
+  next.addEventListener('click', () => { if (validate()) confirmRedeem(c, bal, Number(inp.value)); });
+}
+function confirmRedeem(c, bal, pts) {
+  // Step 2 — are you sure?
+  openModal(`<h3>Are you sure you want to redeem?</h3>
+    <p class="muted small" style="margin:0">This will be deducted from ${esc(fullName(c))}'s balance immediately.</p>
+    <div class="confirm-box"><div class="big">−${fmt(pts)} pts</div><div class="after">Balance after: <strong>${fmt(bal - pts)} pts</strong> (from ${fmt(bal)})</div></div>
+    <div id="r-err" class="small" style="color:var(--red);min-height:18px;margin-top:6px"></div>
+    <div class="btns"><button class="btn ghost" id="r-back" type="button">Go back</button><button class="btn" id="r-ok" type="button">Yes, redeem</button></div>`);
+  const err = $('#r-err'), ok = $('#r-ok');
+  $('#r-back').addEventListener('click', () => openRedeemModal(c, bal));
+  ok.addEventListener('click', () => withBusy(ok, async () => {
+    if (pts > await getBalance(c.phone)) { err.textContent = 'Balance has changed since you started — go back and re-enter.'; return; }
     try { await DataStore.addTransaction({ phone: c.phone, type: 'redeem', points: pts }); }
-    catch (e) { err.textContent = friendlyError(e); ok.disabled = false; return; }
+    catch (e) { err.textContent = friendlyError(e); return; }
     closeModal(); toast(`Redeemed ${fmt(pts)} pts for ${c.firstName}`, true); openProfile(c.phone);
-  });
+  }));
 }
 
 async function openVoidModal(id) {
@@ -837,10 +887,10 @@ async function openVoidModal(id) {
     <div class="card" style="box-shadow:none;background:var(--bg);padding:4px 12px">${txHtml(t, false)}</div>
     <div class="btns"><button class="btn ghost" id="v-cancel" type="button">Keep</button><button class="btn danger" id="v-ok" type="button">Void</button></div>`);
   $('#v-cancel').addEventListener('click', closeModal);
-  $('#v-ok').addEventListener('click', async () => {
+  $('#v-ok').addEventListener('click', () => withBusy($('#v-ok'), async () => {
     try { await DataStore.voidTransaction(id); closeModal(); toast('Transaction voided', true); if (currentProfile) openProfile(currentProfile); }
     catch (e) { toast(friendlyError(e)); }
-  });
+  }));
 }
 
 /* ---------------------------------------------------------------------
@@ -896,7 +946,7 @@ function updatePreview() {
 }
 $('#bags').addEventListener('input', updatePreview);
 
-$('#add-submit').addEventListener('click', async () => {
+$('#add-submit').addEventListener('click', () => withBusy($('#add-submit'), async () => {
   const bags = Number($('#bags').value); let bad = false;
   // Category is mandatory
   if (!addState.category) { $('#cat-chips').classList.add('invalid'); $('#cat-err').style.display = 'block'; bad = true; }
@@ -914,13 +964,12 @@ $('#add-submit').addEventListener('click', async () => {
   }
   if (bad) return;
   const cat = catInfo(addState.category), points = bags * cat.pointsPerBag;
-  const submitBtn = $('#add-submit'); submitBtn.disabled = true; submitBtn.textContent = 'Saving…';
   try {
     await DataStore.addTransaction({ phone: customer.phone, type: 'earn', category: cat.id, bags, points });
   } catch (e) {
     $('#add-result').innerHTML = `<div class="alert err"><strong>Could not save.</strong> ${esc(friendlyError(e))}</div>`;
     toast('Could not save points'); $('#add-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
-  } finally { submitBtn.disabled = false; submitBtn.textContent = 'Add points'; }
+  }
   const bal = await getBalance(customer.phone);
   $('#add-result').innerHTML = `<div class="alert ok"><strong>+${fmt(points)} pts</strong> added to ${esc(fullName(customer))} (${bags} × ${cat.label}). New balance: <strong>${fmt(bal)} pts</strong>.</div>`;
   toast(`Added ${fmt(points)} pts to ${customer.firstName}`, true);
@@ -928,7 +977,7 @@ $('#add-submit').addEventListener('click', async () => {
   addState.customer = null; addState.mode = 'search'; addState.category = null; $('#bags').value = '';
   renderAddCustBlock(); renderChips(); updatePreview();
   $('#add-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-});
+}));
 
 /* ---------------------------------------------------------------------
    3. DASHBOARD
