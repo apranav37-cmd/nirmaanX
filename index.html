@@ -314,7 +314,7 @@
           <div class="chips" id="cat-chips"></div>
           <div id="cat-err" class="small" style="color:var(--red);margin-top:6px;display:none">Please select a cement category.</div>
         </div>
-        <div class="field"><label for="bags">Number of bags</label><input id="bags" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 20"></div>
+        <div class="field"><label for="bags">Number of bags</label><input id="bags" type="number" inputmode="numeric" min="0" step="1" placeholder="e.g. 20"></div>
         <div class="preview" id="pts-preview"><div class="muted small">Points to be added</div><div class="big">—</div></div>
         <button class="btn" id="add-submit" type="button">Add points</button>
       </div>
@@ -372,6 +372,18 @@ const REWARD_TIERS = [
   { points: 100000, title: '₹1,000 Amazon gift card' },
 ];
 const STORE_CONTACT = { phone: '+918146274743', phoneDisplay: '+91 81462 74743', whatsapp: 'https://wa.link/ise65z' };
+
+/* WhatsApp message templates sent by the admin after each action (one tap opens
+   WhatsApp with the message pre-filled). Placeholders: {name} {points} {bags}
+   {category} {balance} {store}. Edit freely — plain text, *bold* works. */
+const STORE_NAME = 'NirmaanX';
+const WA_TEMPLATES = {
+  earn:   'Hi {name}! 🎉 *{points} points* have been added to your {store} account for {bags} bag(s) of {category} cement.\n\nYour new balance: *{balance} points*.\n\nThank you for building with us!',
+  redeem: 'Hi {name}, we have recorded a redemption of *{points} points* from your {store} account.\n\nRemaining balance: *{balance} points*.\n\nThank you for being a loyal customer!',
+  void:   'Hi {name}, a correction was made to your {store} account. An entry of {points} points was reversed.\n\nYour current balance: *{balance} points*.\n\nSorry for the confusion — call us if you have any questions.',
+};
+const fillTemplate = (key, vars) => WA_TEMPLATES[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+const waLink = (phone, text) => `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
 
 /* ---------------------------------------------------------------------
    IN-FILE DATA (temporary — replaced by Firestore later)
@@ -463,8 +475,22 @@ const MemoryStore = {
     if (t.status === 'voided') throw new Error('Already voided.');
     t.status = 'voided'; return t;
   },
+  async updateTransaction(id, patch) {
+    const t = _transactions.find(t => t.id === id); if (!t) throw new Error('Transaction not found.');
+    const updated = { ...t, ...patch };
+    if ((await getBalance(t.phone)) - txEffect(t) + txEffect(updated) < 0) throw new Error('This change would make the balance negative.');
+    Object.assign(t, patch); return t;
+  },
+  async deleteTransaction(id) {
+    const i = _transactions.findIndex(t => t.id === id); if (i < 0) throw new Error('Transaction not found.');
+    const t = _transactions[i];
+    if ((await getBalance(t.phone)) - txEffect(t) < 0) throw new Error('Deleting this would make the balance negative.');
+    _transactions.splice(i, 1); return t;
+  },
   async resetAll() { _customers.length = 0; _transactions.length = 0; },
 };
+/* Signed effect of a ledger entry on the balance (0 when voided) */
+const txEffect = t => t.status !== 'active' ? 0 : (t.type === 'earn' ? t.points : -t.points);
 
 /* ---------------------------------------------------------------------
    FIRESTORE STORE
@@ -573,6 +599,38 @@ const FirestoreStore = {
     this._patchMirror(result.tx, result.newBalance);
     return result.tx;
   },
+  async updateTransaction(id, patch) {
+    const db = this._db(), txRef = db.collection('transactions').doc(id);
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(txRef); if (!snap.exists) throw new Error('Transaction not found.');
+      const t = snap.data(), custRef = db.collection('customers').doc(t.phone), c = await tx.get(custRef);
+      const updated = { ...t, ...patch }, delta = txEffect(updated) - txEffect(t);
+      const current = c.exists ? (c.data().balance || 0) : 0;
+      if (current + delta < 0) throw new Error('This change would make the balance negative.');
+      tx.update(txRef, patch);
+      if (delta) tx.update(custRef, { balance: firebase.firestore.FieldValue.increment(delta) });
+      return { tx: { id, ...updated }, newBalance: current + delta };
+    });
+    this._patchMirror(result.tx, result.newBalance);
+    return result.tx;
+  },
+  async deleteTransaction(id) {
+    const db = this._db(), txRef = db.collection('transactions').doc(id);
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(txRef); if (!snap.exists) throw new Error('Transaction not found.');
+      const t = snap.data(), custRef = db.collection('customers').doc(t.phone), c = await tx.get(custRef);
+      const delta = -txEffect(t), current = c.exists ? (c.data().balance || 0) : 0;
+      if (current + delta < 0) throw new Error('Deleting this would make the balance negative.');
+      tx.delete(txRef);
+      if (delta && c.exists) tx.update(custRef, { balance: firebase.firestore.FieldValue.increment(delta) });
+      return { tx: { id, ...t }, newBalance: current + delta };
+    });
+    if (fsMirror.ready) {
+      fsMirror.transactions = fsMirror.transactions.filter(t => t.id !== id);
+      const c = fsMirror.customers.find(c => c.phone === result.tx.phone); if (c) c.balance = result.newBalance;
+    }
+    return result.tx;
+  },
   /* Delete every customer and transaction (admins collection is untouched).
      Firestore batches are capped at 500 writes, so delete in chunks. */
   async resetAll() {
@@ -648,7 +706,10 @@ const catInfo = id => CATEGORIES.find(c => c.id === id);
 /* Translate Firebase error codes into instructions the admin can act on */
 function friendlyError(e) {
   const code = (e && e.code) || '', msg = (e && e.message) || String(e);
-  if (/permission-denied|insufficient permissions/i.test(code + msg)) return 'Firebase refused the write: this login is not registered as an admin. In Firestore, add a document in the "admins" collection whose ID is this user\'s UID, and make sure the security rules are published.';
+  if (/permission-denied|insufficient permissions/i.test(code + msg)) {
+    if (fsMirror.ready) return 'Firebase refused this action. You are signed in as an admin, so the published security rules are out of date for this action — in Firebase console open Firestore Database → Rules, paste the latest firestore.rules and Publish.';
+    return 'Firebase refused the write: this login is not registered as an admin. In Firestore, add a document in the "admins" collection whose ID is this user\'s UID, and make sure the security rules are published.';
+  }
   if (/not-found|does not exist/i.test(code + msg) && /database/i.test(msg)) return 'The Firestore database has not been created yet. In Firebase console go to Build → Firestore Database → Create database.';
   if (/unavailable|network|offline/i.test(code + msg)) return 'No connection to Firebase right now. The change will be retried when you are back online.';
   if (/unauthenticated/i.test(code + msg)) return 'You are signed out. Log out and sign in again.';
@@ -676,6 +737,17 @@ function openModal(html) {
   document.body.style.overflow = 'hidden';
 }
 function closeModal() { $('#modal-root').innerHTML = ''; document.body.style.overflow = ''; }
+/* After a successful action: offer to send the templated WhatsApp message */
+function offerWhatsApp(heading, c, key, vars) {
+  const text = fillTemplate(key, { name: c.firstName, store: STORE_NAME, ...vars });
+  openModal(`<h3 style="color:var(--green)">${esc(heading)}</h3>
+    <p class="muted small" style="margin:0 0 10px">Send ${esc(c.firstName)} a WhatsApp update? The message opens ready to send.</p>
+    <div class="card" style="box-shadow:none;background:var(--bg);white-space:pre-wrap;font-size:.9rem;margin-bottom:12px">${esc(text)}</div>
+    <a class="contact wa" href="${waLink(c.phone, text)}" target="_blank" rel="noopener" id="wa-send"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3 .78.8-2.93-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.25-.12-1.46-.72-1.68-.8-.23-.08-.4-.12-.56.12-.17.25-.64.8-.79.97-.14.17-.29.19-.54.06a6.7 6.7 0 0 1-3.35-2.93c-.25-.43.25-.4.72-1.33.08-.17.04-.31-.02-.43l-.76-1.83c-.2-.48-.4-.41-.56-.42h-.48a.92.92 0 0 0-.67.31 2.8 2.8 0 0 0-.87 2.08c0 1.23.9 2.42 1.02 2.58.12.17 1.76 2.68 4.26 3.76 1.6.69 2.22.75 3.02.63.49-.07 1.46-.6 1.67-1.18.2-.58.2-1.07.14-1.18-.06-.1-.23-.17-.48-.29z"/></svg></span><span>Send on WhatsApp<small>to +91 ${esc(c.phone)}</small></span></a>
+    <button class="btn ghost" id="wa-skip" type="button" style="margin-top:10px">Skip</button>`);
+  $('#wa-skip').addEventListener('click', closeModal);
+  $('#wa-send').addEventListener('click', () => setTimeout(closeModal, 300));
+}
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
   window.scrollTo(0, 0);
@@ -688,7 +760,7 @@ function txHtml(t, withVoid) {
       <div class="desc">${desc} <span class="badge ${isEarn ? 'earn' : 'redeem'}">${t.type}</span>${voided ? ' <span class="badge void">Voided</span>' : ''}</div>
       <div class="meta">${fmtDate(t.timestamp)}</div>
     </div><div class="amt ${t.type}">${isEarn ? '+' : '−'}${fmt(t.points)} pts</div></div>
-    ${withVoid && !voided ? `<div class="actions"><button class="void-btn" data-void="${t.id}" type="button">Void</button></div>` : ''}
+    ${withVoid ? `<div class="actions" style="gap:8px"><button class="void-btn" data-edit="${t.id}" type="button">Edit</button>${voided ? '' : `<button class="void-btn" data-void="${t.id}" type="button">Void</button>`}</div>` : ''}
   </div>`;
 }
 
@@ -855,7 +927,10 @@ async function openProfile(phone) {
   $('#search-list-view').style.display = 'none'; $('#profile-view').style.display = 'block'; window.scrollTo(0, 0);
   $('#prof-back').addEventListener('click', () => { $('#profile-view').style.display = 'none'; $('#search-list-view').style.display = 'block'; currentProfile = null; renderSearch(); });
   $('#redeem-btn').addEventListener('click', () => openRedeemModal(c, bal));
-  $('#prof-tx').addEventListener('click', e => { const b = e.target.closest('[data-void]'); if (b) openVoidModal(b.dataset.void); });
+  $('#prof-tx').addEventListener('click', e => {
+    const v = e.target.closest('[data-void]'); if (v) return openVoidModal(v.dataset.void);
+    const ed = e.target.closest('[data-edit]'); if (ed) openEditModal(ed.dataset.edit);
+  });
 }
 
 function openRedeemModal(c, bal) {
@@ -890,7 +965,8 @@ function confirmRedeem(c, bal, pts) {
     if (pts > await getBalance(c.phone)) { err.textContent = 'Balance has changed since you started — go back and re-enter.'; return; }
     try { await DataStore.addTransaction({ phone: c.phone, type: 'redeem', points: pts }); }
     catch (e) { err.textContent = friendlyError(e); return; }
-    closeModal(); toast(`Redeemed ${fmt(pts)} pts for ${c.firstName}`, true); openProfile(c.phone);
+    closeModal(); toast(`Redeemed ${fmt(pts)} pts for ${c.firstName}`, true); await openProfile(c.phone);
+    offerWhatsApp(`${fmt(pts)} pts redeemed`, c, 'redeem', { points: fmt(pts), balance: fmt(await getBalance(c.phone)) });
   }));
 }
 
@@ -902,9 +978,69 @@ async function openVoidModal(id) {
     <div class="btns"><button class="btn ghost" id="v-cancel" type="button">Keep</button><button class="btn danger" id="v-ok" type="button">Void</button></div>`);
   $('#v-cancel').addEventListener('click', closeModal);
   $('#v-ok').addEventListener('click', () => withBusy($('#v-ok'), async () => {
-    try { await DataStore.voidTransaction(id); closeModal(); toast('Transaction voided', true); if (currentProfile) openProfile(currentProfile); }
-    catch (e) { toast(friendlyError(e)); }
+    try {
+      const v = await DataStore.voidTransaction(id); closeModal(); toast('Transaction voided', true);
+      if (currentProfile) await openProfile(currentProfile);
+      const c = await DataStore.getCustomer(v.phone);
+      if (c) offerWhatsApp('Entry voided', c, 'void', { points: fmt(v.points), balance: fmt(await getBalance(c.phone)) });
+    } catch (e) { toast(friendlyError(e)); }
   }));
+}
+
+/* Edit an entry (category/bags for earn, points for redeem); Delete lives inside */
+async function openEditModal(id) {
+  const t = (await DataStore.getTransactions()).find(x => x.id === id); if (!t) return;
+  const bal = await getBalance(t.phone), isEarn = t.type === 'earn', voided = t.status === 'voided';
+  let cat = t.category;
+  openModal(`<h3>Edit entry</h3>
+    <p class="muted small" style="margin:0 0 12px">${fmtDate(t.timestamp)} · <span class="badge ${t.type}">${t.type}</span>${voided ? ' <span class="badge void">Voided</span>' : ''}</p>
+    ${isEarn
+      ? `<div class="field"><label>Cement category</label><div class="chips" id="e-chips"></div></div>
+         <div class="field"><label for="e-bags">Number of bags</label><input id="e-bags" type="number" inputmode="numeric" min="1" step="1" value="${t.bags}"></div>`
+      : `<div class="field"><label for="e-pts">Points redeemed</label><input id="e-pts" type="number" inputmode="decimal" min="0.5" step="0.5" value="${t.points}"></div>`}
+    <div class="preview" id="e-preview"></div>
+    <div id="e-err" class="small" style="color:var(--red);min-height:18px"></div>
+    <div class="btns"><button class="btn ghost" id="e-cancel" type="button">Cancel</button><button class="btn" id="e-save" type="button">Save changes</button></div>
+    <button class="linkbtn" id="e-delete" type="button" style="width:100%;margin-top:10px;color:var(--red)">Delete this entry</button>`);
+  const err = $('#e-err'), save = $('#e-save');
+  const renderEChips = () => { $('#e-chips').innerHTML = CATEGORIES.map(c => `<button class="chip ${cat === c.id ? 'sel' : ''}" data-cat="${c.id}" type="button">${c.label}<small>${c.pointsPerBag} pts/bag</small></button>`).join(''); };
+  const compute = () => {
+    let patch, msg = '';
+    if (isEarn) {
+      const bags = Number($('#e-bags').value), ci = catInfo(cat);
+      if (!Number.isInteger(bags) || bags <= 0) msg = 'Enter a whole number of bags (1 or more).';
+      patch = { category: cat, bags, points: ci ? bags * ci.pointsPerBag : 0 };
+    } else {
+      const p = Number($('#e-pts').value);
+      if (!(p > 0) || !Number.isInteger(p * 2)) msg = 'Enter points greater than 0, in steps of 0.5.';
+      patch = { points: p };
+    }
+    const newBal = bal - txEffect(t) + txEffect({ ...t, ...patch });
+    if (!msg && newBal < 0) msg = `Balance would go to ${fmt(newBal)} pts — the customer has already redeemed those points.`;
+    $('#e-preview').innerHTML = `<div class="muted small">${isEarn ? 'Points for this entry' : 'Points redeemed'}</div><div class="big">${isEarn ? '+' : '−'}${fmt(patch.points)} <span class="small muted" style="font-weight:600">pts</span></div><div class="small muted">Balance after: <strong>${fmt(newBal)} pts</strong>${voided ? ' (voided entry — no effect on balance)' : ''}</div>`;
+    err.textContent = msg; save.disabled = !!msg; return msg ? null : patch;
+  };
+  if (isEarn) { renderEChips(); $('#e-chips').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) { cat = b.dataset.cat; renderEChips(); compute(); } }); $('#e-bags').addEventListener('input', compute); }
+  else $('#e-pts').addEventListener('input', compute);
+  compute();
+  $('#e-cancel').addEventListener('click', closeModal);
+  save.addEventListener('click', () => withBusy(save, async () => {
+    const patch = compute(); if (!patch) return;
+    try { await DataStore.updateTransaction(id, patch); } catch (e) { err.textContent = friendlyError(e); return; }
+    closeModal(); toast('Entry updated', true); if (currentProfile) openProfile(currentProfile);
+  }));
+  $('#e-delete').addEventListener('click', () => {
+    openModal(`<h3 style="color:var(--red)">Delete this entry?</h3>
+      <p class="muted small" style="margin:0 0 10px">It will be removed from the history permanently${txEffect(t) ? ` and <strong>${fmt(Math.abs(txEffect(t)))} pts</strong> will be ${txEffect(t) > 0 ? 'removed from' : 'returned to'} the balance` : ''}. To keep a record of the mistake, use Void instead.</p>
+      <div class="card" style="box-shadow:none;background:var(--bg);padding:4px 12px">${txHtml(t, false)}</div>
+      <div id="d-err" class="small" style="color:var(--red);min-height:18px"></div>
+      <div class="btns"><button class="btn ghost" id="d-back" type="button">Go back</button><button class="btn danger" id="d-ok" type="button">Delete</button></div>`);
+    $('#d-back').addEventListener('click', () => openEditModal(id));
+    $('#d-ok').addEventListener('click', () => withBusy($('#d-ok'), async () => {
+      try { await DataStore.deleteTransaction(id); } catch (e) { $('#d-err').textContent = friendlyError(e); return; }
+      closeModal(); toast('Entry deleted', true); if (currentProfile) openProfile(currentProfile);
+    }));
+  });
 }
 
 /* ---------------------------------------------------------------------
@@ -924,7 +1060,7 @@ function renderAddCustBlock() {
       <div class="field"><label for="n-last">Last name</label><input id="n-last" autocomplete="off"></div>
       <div class="field"><label for="n-phone">Phone number <span style="color:var(--red)">*</span></label><input id="n-phone" type="tel" inputmode="numeric" placeholder="10-digit mobile number" autocomplete="off"></div>
       <div id="n-err"></div>
-      <div class="alert info small" style="margin-bottom:10px">The customer will be created when you add points below.</div>
+      <div class="alert info small" style="margin-bottom:10px">The customer is created when you tap <strong>Add points</strong>. Leave bags empty (or 0) to add them with no purchase yet.</div>
       <button class="linkbtn" id="to-search-mode" type="button">‹ Search existing customer instead</button>`;
     $('#to-search-mode').addEventListener('click', () => { addState.mode = 'search'; renderAddCustBlock(); });
   } else {
@@ -962,9 +1098,14 @@ $('#bags').addEventListener('input', updatePreview);
 
 $('#add-submit').addEventListener('click', () => withBusy($('#add-submit'), async () => {
   const bags = Number($('#bags').value); let bad = false;
-  // Category is mandatory
-  if (!addState.category) { $('#cat-chips').classList.add('invalid'); $('#cat-err').style.display = 'block'; bad = true; }
-  if (!Number.isInteger(bags) || bags <= 0) { toast('Enter a valid number of bags (1 or more).'); bad = true; }
+  // A NEW customer may be created with no purchase yet (0 / empty bags → 0 points, no category needed)
+  const creatingNew = !addState.customer && addState.mode === 'new';
+  const noPurchase = creatingNew && ($('#bags').value.trim() === '' || bags === 0);
+  if (!noPurchase) {
+    // Category is mandatory whenever points are added
+    if (!addState.category) { $('#cat-chips').classList.add('invalid'); $('#cat-err').style.display = 'block'; bad = true; }
+    if (!Number.isInteger(bags) || bags <= 0) { toast('Enter a valid number of bags (1 or more).'); bad = true; }
+  }
   let customer = addState.customer;
   if (!customer) {
     if (addState.mode !== 'new') { toast('Select or create a customer first.'); return; }
@@ -975,6 +1116,13 @@ $('#add-submit').addEventListener('click', () => withBusy($('#add-submit'), asyn
     if (await DataStore.getCustomer(phone)) { err.innerHTML = `<div class="alert err">A customer with this phone already exists. Search for them instead.</div>`; return; }
     if (bad) return;
     try { customer = await DataStore.addCustomer({ firstName: first, lastName: last, phone }); } catch (e) { err.innerHTML = `<div class="alert err">${esc(friendlyError(e))}</div>`; return; }
+    if (noPurchase) {
+      $('#add-result').innerHTML = `<div class="alert ok"><strong>${esc(fullName(customer))}</strong> added as a customer with <strong>0 pts</strong>. Add points when they make a purchase.</div>`;
+      toast(`${customer.firstName} added`, true);
+      addState.customer = null; addState.mode = 'search'; addState.category = null; $('#bags').value = '';
+      renderAddCustBlock(); renderChips(); updatePreview();
+      $('#add-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return;
+    }
   }
   if (bad) return;
   const cat = catInfo(addState.category), points = bags * cat.pointsPerBag;
@@ -987,6 +1135,7 @@ $('#add-submit').addEventListener('click', () => withBusy($('#add-submit'), asyn
   const bal = await getBalance(customer.phone);
   $('#add-result').innerHTML = `<div class="alert ok"><strong>+${fmt(points)} pts</strong> added to ${esc(fullName(customer))} (${bags} × ${cat.label}). New balance: <strong>${fmt(bal)} pts</strong>.</div>`;
   toast(`Added ${fmt(points)} pts to ${customer.firstName}`, true);
+  offerWhatsApp(`+${fmt(points)} pts added`, customer, 'earn', { points: fmt(points), bags, category: cat.label, balance: fmt(bal) });
   // Reset form for next entry
   addState.customer = null; addState.mode = 'search'; addState.category = null; $('#bags').value = '';
   renderAddCustBlock(); renderChips(); updatePreview();
